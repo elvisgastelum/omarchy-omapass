@@ -15,6 +15,9 @@ Item {
 
   property bool opened: false
 
+  // Follows the Omarchy language; bindings re-render on change.
+  Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
+
   readonly property string pluginId: "elvisgastelum.omapass"
   // Looked up live so it follows the service if it registers late or reloads.
   readonly property var liveService: (root.shell && typeof root.shell.serviceFor === "function"
@@ -70,7 +73,7 @@ Item {
       Text {
         anchors.centerIn: parent
         textFormat: Text.PlainText
-        text: root.liveService ? root.liveService.skeletonValue : "no service"
+        text: root.liveService && root.liveService.skeletonValue === "service ok" ? strings.t("skeleton.serviceOk") : strings.t("skeleton.noService")
         color: Commons.Color.menu.text
         font.family: Style.font.menuFamily
         font.pixelSize: Style.font.body
