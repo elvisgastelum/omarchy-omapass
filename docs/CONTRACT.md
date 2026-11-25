@@ -525,8 +525,10 @@ id, title, vault name or value is logged. An unknown subcommand is logged as
 
 ## Adding a subcommand
 
-Put a file in `bin/lib/` that defines `omapass_cmd_<name>` (dashes become
-underscores) and nothing else at top level. The dispatcher sources every
+Put a file in `bin/lib/` that may define `omapass_cmd_<name>` (dashes become
+underscores), `omapass_`-prefixed helper functions and `OMAPASS_`-prefixed
+globals. Sourcing it runs no commands, apart from unsetting inherited
+`OMAPASS_` variables. The dispatcher sources every
 `bin/lib/*.sh` and calls the matching function; it never needs editing. A lib
 that is a symlink, not a regular file, not owned by the user, or writable by
 group or others is refused (`bad_lib`), and so is a group- or other-writable

@@ -5,6 +5,9 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# Every session test runs with the debug log on; expect_clean checks that it was written.
+export OMAPASS_DEBUG=1
+
 SID="FIXTURE-SHARE-A=="
 IID="FIXTURE-ITEM-A1=="
 
@@ -14,10 +17,17 @@ state_file() { printf '%s/omapass/clipboard.state' "$XDG_RUNTIME_DIR"; }
 assert_log_has() { grep -qxF -- "$1" "$OMAPASS_MOCK_LOG" || _omapass_fail "mock log lacks line '$1'"; }
 assert_log_lacks() { ! grep -qF -- "$1" "$OMAPASS_MOCK_LOG" || _omapass_fail "mock log has '$1'"; }
 
+# run_fresh: run_helper with a fresh debug log, so every log assert is about this run alone.
+run_fresh() {
+  rm -f "$XDG_RUNTIME_DIR/omapass/debug.log"
+  run_helper "$@"
+}
+
 # expect_clean: one-line stdout, empty stderr, no canary anywhere.
 expect_clean() {
   assert_eq 1 "$(wc -l <"$OMAPASS_SANDBOX/stdout" | tr -d ' ')" "stdout line count"
   assert_eq "" "$S_ERR" "stderr"
+  assert_file_exists "$XDG_RUNTIME_DIR/omapass/debug.log"
   assert_no_leak CANARY
 }
 
@@ -35,9 +45,13 @@ expect_fail() { # rc error [reason]
   expect_clean
 }
 
+# plant_stderr <key>: make the pass-cli mock print a canary line on stderr for that sandbox fixture key.
+plant_stderr() { printf 'CANARY-PASS-STDERR\n' >>"$(fx_dir)/$1.stderr"; }
+
 # fail_override <key> <stderr text> [exit]: make the pass-cli mock fail for that fixture key.
 fail_override() {
   printf '%s\n' "$2" >"$(fx_dir)/$1.stderr"
+  plant_stderr "$1"
   printf '%s\n' "${3:-1}" >"$(fx_dir)/$1.exit"
 }
 
@@ -53,8 +67,10 @@ wait_log_line() {
 
 # make_copy: copy the fixture login password (no detached clearer with --clear-after 0).
 make_copy() {
-  run_helper copy "$SID" "$IID" password --clear-after 0
+  run_fresh copy "$SID" "$IID" password --clear-after 0
   assert_eq 0 "$S_RC" "copy exit code"
+  assert_file_exists "$XDG_RUNTIME_DIR/omapass/debug.log"
+  assert_no_leak CANARY-LOGIN-PASSWORD-1
   assert_file_exists "$(state_file)"
   assert_eq CANARY-LOGIN-PASSWORD-1 "$(wl-paste -n)" "clipboard holds the copy"
   : >"$OMAPASS_MOCK_LOG"
@@ -72,7 +88,8 @@ test_trash_untrash_ok() {
   use_fixture_scenario ok
   for verb in trash untrash; do
     : >"$OMAPASS_MOCK_LOG"
-    run_helper "$verb" "$SID" "$IID"
+    plant_stderr "item__${verb}__--share-id__${SID}__--item-id__${IID}"
+    run_fresh "$verb" "$SID" "$IID"
     expect_ok '{"ok":true}'
     assert_log_has "pass-cli item $verb --share-id $SID --item-id $IID"
     assert_log_lacks "--item-title"
@@ -84,19 +101,19 @@ test_trash_usage() {
   local verb
   use_fixture_scenario ok
   for verb in trash untrash; do
-    run_helper "$verb"
+    OMAPASS_CLIP_KEY=CANARY-CLIP-KEY run_fresh "$verb"
     expect_fail 2 failed usage
-    run_helper "$verb" "$SID"
+    run_fresh "$verb" CANARY-ARG
     expect_fail 2 failed usage
-    run_helper "$verb" "$SID" "$IID" extra
+    run_fresh "$verb" "$SID" "$IID" CANARY-EXTRA
     expect_fail 2 failed usage
-    run_helper "$verb" "a b" "$IID"
+    run_fresh "$verb" "CANARY a b" "$IID"
     expect_fail 2 failed usage
-    run_helper "$verb" "$SID" "a b"
+    run_fresh "$verb" "$SID" "CANARY a b"
     expect_fail 2 failed usage
-    run_helper "$verb" "../x" "$IID"
+    run_fresh "$verb" "../CANARY" "$IID"
     expect_fail 2 failed usage
-    run_helper "$verb" "$SID" "../x"
+    run_fresh "$verb" "$SID" "../CANARY"
     expect_fail 2 failed usage
   done
   assert_log_lacks "pass-cli item"
@@ -108,60 +125,67 @@ test_trash_failures() {
   for verb in trash untrash; do
     key="item__${verb}__--share-id__${SID}__--item-id__${IID}"
     fail_override "$key" "Error: Session is locked. Please unlock your session and try again."
-    run_helper "$verb" "$SID" "$IID"
+    run_fresh "$verb" "$SID" "$IID"
     expect_fail 11 locked
     fail_override "$key" "Error: Item does not exist"
-    run_helper "$verb" "$SID" "$IID"
+    run_fresh "$verb" "$SID" "$IID"
     expect_fail 17 not_found
   done
 }
 
 test_lock_ok() {
   use_fixture_scenario ok
+  plant_stderr session__lock
   make_copy
-  run_helper lock
+  run_fresh lock
   expect_ok '{"ok":true,"state":"locked"}'
   expect_clipboard_cleared
   assert_log_has "pass-cli session lock"
   assert_log_lacks "pass-cli logout"
+  assert_no_leak CANARY-LOGIN-PASSWORD-1
 }
 
 test_lock_no_lock() {
   use_fixture_scenario no_lock
+  plant_stderr session__lock
   make_copy
-  run_helper lock
+  run_fresh lock
   assert_eq 1 "$S_RC" "exit code"
   assert_eq '{"ok":false,"error":"failed","reason":"no_lock"}' "$S_OUT"
   expect_clean
   expect_clipboard_cleared
   assert_log_has "pass-cli session lock"
   assert_log_lacks "pass-cli logout"
+  assert_no_leak CANARY-LOGIN-PASSWORD-1
 }
 
 test_lock_other_failure() {
   use_fixture_scenario ok
   fail_override session__lock "Error: This operation requires an authenticated client"
-  run_helper lock
+  run_fresh lock
   expect_fail 10 signed_out
   assert_log_lacks "pass-cli logout"
 }
 
 test_logout() {
   use_fixture_scenario ok
+  plant_stderr logout
   make_copy
-  run_helper logout
+  run_fresh logout
   expect_ok '{"ok":true,"state":"signed_out"}'
   expect_clipboard_cleared
   assert_log_has "pass-cli logout"
   assert_log_lacks "--force"
+  assert_no_leak CANARY-LOGIN-PASSWORD-1
 }
 
 test_login_and_unlock() {
   local sub want
   use_fixture_scenario ok
+  plant_stderr --version # both commands run the version check, so this canary reaches the run
   for sub in login unlock; do
     : >"$OMAPASS_MOCK_LOG"
-    run_helper "$sub"
+    OMAPASS_CLIP_KEY=CANARY-CLIP-KEY run_fresh "$sub"
     expect_ok '{"ok":true}'
     if [[ "$sub" == login ]]; then want="-e pass-cli login"; else want="-e pass-cli session unlock"; fi
     wait_log_line "xdg-terminal-exec --app-id=org.omarchy.omapass $want"
@@ -193,7 +217,7 @@ test_login_detaches() {
   # Inherited names stay exported after core.sh resets them: the spawn must still drop them.
   start="$(date +%s%N)"
   export LC_ALL=C
-  OMAPASS_TMPDIR=/nonexistent OMAPASS_SUB=x OMAPASS_MAIN_PID=1 OMAPASS_CLIP_KEY=CANARY-CLIP-KEY run_helper login 9>/dev/null
+  OMAPASS_TMPDIR=/nonexistent OMAPASS_SUB=x OMAPASS_MAIN_PID=1 OMAPASS_CLIP_KEY=CANARY-CLIP-KEY run_fresh login 9>/dev/null
   end="$(date +%s%N)"
   ms=$(((end - start) / 1000000))
   expect_ok '{"ok":true}'
@@ -229,14 +253,14 @@ test_login_detaches() {
 test_logout_signed_out() {
   use_fixture_scenario ok
   fail_override logout "Error: This operation requires an authenticated client"
-  run_helper logout
+  run_fresh logout
   expect_ok '{"ok":true,"state":"signed_out"}'
 }
 
 test_logout_network() {
   use_fixture_scenario ok
   fail_override logout "Error: error sending request"
-  run_helper logout
+  run_fresh logout
   expect_fail 15 network
 }
 
@@ -244,7 +268,7 @@ test_extra_args_usage() {
   local sub
   use_fixture_scenario ok
   for sub in lock logout login unlock; do
-    run_helper "$sub" extra
+    run_fresh "$sub" CANARY-EXTRA
     expect_fail 2 failed usage
   done
   assert_log_lacks "pass-cli session"

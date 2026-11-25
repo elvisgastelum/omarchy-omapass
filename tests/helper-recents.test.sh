@@ -63,6 +63,7 @@ test_permissions() {
 }
 
 test_no_title_or_secret_stored() {
+  export OMAPASS_DEBUG=1
   add_items 1 2
   assert_eq '["id","share_id","time"]' "$(jq -c '[.recents[] | keys[]] | unique' "$(recents_file)")" "file keys"
   assert_eq 0 "$(jq '[.recents[] | keys | length | select(. != 3)] | length' "$(recents_file)")" "three keys each"
@@ -79,14 +80,18 @@ test_no_title_or_secret_stored() {
 {"share_id":"S2","id":"ITEM-B","time":"2026-01-02T00:00:00Z","password":"CANARY"}
 ]}
 JSON
+  rm -f "$XDG_RUNTIME_DIR/omapass/debug.log"
   run_helper recents list
   assert_ok_envelope
   assert_eq '[{"share_id":"S1","id":"ITEM-A","time":"2026-01-01T00:00:00Z"},{"share_id":"S2","id":"ITEM-B","time":"2026-01-02T00:00:00Z"}]' \
     "$(jq -c .recents <<<"$S_OUT")" "sanitized"
+  assert_file_exists "$XDG_RUNTIME_DIR/omapass/debug.log"
   assert_no_leak CANARY
+  rm -f "$XDG_RUNTIME_DIR/omapass/debug.log"
   run_helper recents add S3 ITEM-C
   assert_ok_envelope
   assert_not_contains "$(<"$(recents_file)")" CANARY
+  assert_file_exists "$XDG_RUNTIME_DIR/omapass/debug.log"
   assert_no_leak CANARY
 }
 

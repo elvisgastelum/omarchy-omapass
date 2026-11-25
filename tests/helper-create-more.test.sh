@@ -71,7 +71,9 @@ assert_no_pass_create() {
 
 test_credit_card() {
   local form='{"title":"Visa","cardholder_name":"A Tester","number":"CANARY-CARDNUM-4111","cvv":"CANARY-CVV-77","pin":"CANARY-PIN-9","expiration_date":"2031-07","note":"n"}'
+  local dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create credit-card
+  export OMAPASS_DEBUG=1
   run_create credit-card "$form"
   assert_ok_created credit-card
   jq -e . "$OMAPASS_MOCK_STDIN_DIR/$(create_key credit-card).stdin" >/dev/null || _omapass_fail "template is not JSON"
@@ -80,6 +82,7 @@ test_credit_card() {
   assert_eq "pass-cli --version
 pass-cli item create credit-card --get-template
 pass-cli item create credit-card --share-id $SHARE --from-template -" "$(mock_log)"
+  assert_file_exists "$dbg"
   assert_no_leak CANARY
 
   : >"$OMAPASS_MOCK_LOG"
@@ -89,11 +92,14 @@ pass-cli item create credit-card --share-id $SHARE --from-template -" "$(mock_lo
 }
 
 test_wifi_explicit_password() {
+  local dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create wifi
+  export OMAPASS_DEBUG=1
   run_create wifi '{"title":"Home","ssid":"HomeNet","password":"CANARY-WIFI-pw","note":"router"}'
   assert_ok_created wifi
   assert_eq '{"title":"Home","ssid":"HomeNet","password":"CANARY-WIFI-pw","note":"router"}' \
     "$(captured wifi | jq -c '{title,ssid,password,note}')"
+  assert_file_exists "$dbg"
   assert_no_leak CANARY
 }
 
@@ -111,23 +117,29 @@ test_wifi_generate() {
 }
 
 test_wifi_password_and_generate() {
+  local dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create wifi
   fx "$GEN_RANDOM_DEFAULT.json" "{\"password\":\"$GEN_SECRET\"}"
+  export OMAPASS_DEBUG=1
   run_create wifi '{"title":"Both","password":"CANARY-WIFI-pw","generate":{"kind":"random"}}'
   assert_bad_input
   assert_no_pass_create
   assert_not_contains "$(mock_log)" "password generate"
+  assert_file_exists "$dbg"
   assert_no_leak CANARY-WIFI-pw
 }
 
 test_identity() {
+  local dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create identity
+  export OMAPASS_DEBUG=1
   run_create identity '{"title":"Me","full_name":"Ann Tester","email":"ann@example.com","city":"Testville","social_security_number":"CANARY-SSN-1","passport_number":"CANARY-PASSPORT-2","note":"id note"}'
   assert_ok_created identity
   assert_eq '{"title":"Me","full_name":"Ann Tester","email":"ann@example.com","city":"Testville","social_security_number":"CANARY-SSN-1","passport_number":"CANARY-PASSPORT-2","note":"id note"}' \
     "$(captured identity | jq -c '{title,full_name,email,city,social_security_number,passport_number,note}')"
   assert_eq '{"phone_number":"","first_name":"","work_email":"","company":""}' \
     "$(captured identity | jq -c '{phone_number,first_name,work_email,company}')" "unset keys stay empty"
+  assert_file_exists "$dbg"
   assert_no_leak CANARY
 
   run_create identity '{"title":"Me","email":null}'
@@ -141,20 +153,25 @@ test_identity() {
 }
 
 test_alias() {
+  local dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create alias
   fx "$ALIAS_KEY.json" '{"alias":"shop.news.abc@example.test"}'
+  export OMAPASS_DEBUG=1
   run_create alias '{"prefix":"shop.news"}'
   assert_ok_created alias
   assert_contains "$(mock_log)" "pass-cli item alias create --share-id $SHARE --prefix shop.news --output json"
   assert_not_contains "$(mock_log)" "get-template"
 
   local prefix
-  for prefix in "Bad Prefix" "-x" ""; do
+  for prefix in "Bad Prefix" "-x" "" "CANARY-ALIAS bad"; do
+    rm -f "$dbg"
     : >"$OMAPASS_MOCK_LOG"
     run_create alias "$(jq -cn --arg p "$prefix" '{prefix:$p}')"
     assert_bad_input
     assert_not_contains "$(mock_log)" "item alias" "alias call for '$prefix'"
   done
+  assert_file_exists "$dbg"
+  assert_no_leak CANARY-ALIAS
 }
 
 test_alias_failure() {
@@ -198,9 +215,9 @@ test_ssh_key_import() {
 }
 
 test_secrets_not_in_env() {
-  local envlog="$OMAPASS_SANDBOX/mock.env" form
+  local envlog="$OMAPASS_SANDBOX/mock.env" form dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   export OMAPASS_CREATE_FORM=x OMAPASS_CREATE_SECRET=x OMAPASS_CREATE_FILLED=x
-  export OMAPASS_MOCK_ENV_LOG="$envlog"
+  export OMAPASS_MOCK_ENV_LOG="$envlog" OMAPASS_DEBUG=1
 
   setup_create credit-card
   run_create credit-card '{"title":"Visa","number":"CANARY-CARDNUM-4111","cvv":"CANARY-CVV-77","pin":"CANARY-PIN-9"}'
@@ -208,7 +225,10 @@ test_secrets_not_in_env() {
   assert_file_exists "$envlog"
   assert_not_contains "$(<"$envlog")" CANARY "card secrets in pass-cli env"
   assert_not_contains "$(<"$envlog")" "OMAPASS_CREATE_" "create globals exported"
+  assert_file_exists "$dbg"
+  assert_no_leak CANARY
 
+  rm -f "$dbg"
   : >"$envlog"
   setup_create ssh-key
   fx "$SSH_IMPORT_KEY.txt" "created"
@@ -218,11 +238,12 @@ test_secrets_not_in_env() {
   assert_file_exists "$envlog"
   assert_not_contains "$(<"$envlog")" CANARY "ssh key in pass-cli env"
   assert_not_contains "$(<"$envlog")" "OMAPASS_CREATE_" "create globals exported"
+  assert_file_exists "$dbg"
   assert_no_leak CANARY
 }
 
 test_ssh_key_bad_input() {
-  local form i=0
+  local form i=0 dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   local -a forms=(
     '{"title":"-oops","mode":"generate"}'
     '{"title":"T","mode":"import","key_type":"ed25519","private_key":"-----BEGIN OPENSSH PRIVATE KEY-----\nCANARY-SSHKEY-x"}'
@@ -234,15 +255,18 @@ test_ssh_key_bad_input() {
     '{"title":"T","mode":"generate","comment":"tab\there"}'
   )
   setup_create ssh-key
+  export OMAPASS_DEBUG=1
   for form in "${forms[@]}"; do
     i=$((i + 1))
+    rm -f "$dbg"
     : >"$OMAPASS_MOCK_LOG"
     run_create ssh-key "$form"
     assert_error failed bad_input 1
     assert_no_pass_create
     assert_eq "" "$(mock_log)" "ssh-key form #$i mock log"
+    assert_file_exists "$dbg"
+    assert_no_leak CANARY
   done
-  assert_no_leak CANARY
 }
 
 run_test "credit-card fills the template and rejects a bad expiry" test_credit_card

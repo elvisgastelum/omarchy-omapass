@@ -103,6 +103,17 @@ test_version_too_old() {
   assert_eq "" "$S_ERR"
 }
 
+test_version_no_leak() {
+  local log="$XDG_RUNTIME_DIR/omapass/debug.log"
+  use_fixture_scenario ok
+  use_hostile_pass_cli
+  export OMAPASS_DEBUG=1 OMAPASS_HOSTILE_MODE=stderr OMAPASS_HOSTILE_CANARY=CANARY-VERSION-HOSTILE
+  run_helper version
+  assert_contains "$(<"$OMAPASS_MOCK_LOG")" "pass-cli --version" "hostile pass-cli was called"
+  assert_file_exists "$log"
+  assert_no_leak CANARY-VERSION-HOSTILE
+}
+
 test_version_ge() {
   local v1 v2 want
   while read -r v1 v2 want; do
@@ -412,6 +423,7 @@ run_test "timeout scenario returns quickly" test_timeout_is_quick
 run_test "ok scenario makes exactly two pass-cli calls" test_ok_mock_log
 run_test "version subcommand" test_version_ok
 run_test "version subcommand too old" test_version_too_old
+run_test "version keeps hostile pass-cli output out of logs" test_version_no_leak
 run_test "omapass_version_ge" test_version_ge
 run_test "omapass_classify" test_classify
 run_test "unknown and missing subcommands" test_unknown_subcommands
