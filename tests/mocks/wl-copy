@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Mock wl-copy: stores the clipboard in $XDG_RUNTIME_DIR. Never logs the text.
+if [[ -z "${XDG_RUNTIME_DIR:-}" ]]; then
+  echo "mock wl-copy: XDG_RUNTIME_DIR is not set" >&2
+  exit 1
+fi
+state="$XDG_RUNTIME_DIR/omapass-mock-clipboard"
+clear=0 once=0 trim=0 opts=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -c | --clear) clear=1 ;;
+    -o | --paste-once) once=1 ;;
+    -n | --trim-newline) trim=1 ;;
+    -p | --primary) ;;
+    -t | --type)
+      opts="$opts $1 ${2:-}"
+      shift
+      shift || true
+      continue
+      ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+  opts="$opts $1"
+  shift
+done
+if [[ -n "${OMAPASS_MOCK_LOG:-}" ]]; then
+  echo "wl-copy$opts" >>"$OMAPASS_MOCK_LOG"
+fi
+if [[ $clear -eq 1 ]]; then
+  rm -f "$state" "$state.once"
+  exit 0
+fi
+if [[ $# -gt 0 ]]; then
+  text="$*"
+else
+  text="$(cat; printf x)"
+  text="${text%x}"
+fi
+if [[ $trim -eq 1 && "$text" == *$'\n' ]]; then
+  text="${text%$'\n'}"
+fi
+printf '%s' "$text" >"$state"
+rm -f "$state.once"
+if [[ $once -eq 1 ]]; then
+  : >"$state.once"
+fi
+exit 0
