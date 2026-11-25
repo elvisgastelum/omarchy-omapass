@@ -400,6 +400,20 @@ test_env_pass_stderr_ignored() {
   [[ ! -e "$OMAPASS_SANDBOX/outside.err" ]] || _omapass_fail "OMAPASS_PASS_STDERR was honored"
 }
 
+test_env_functions_ignored() {
+  printf 'printf "from-bash-env\\n"\n' >"$OMAPASS_SANDBOX/bash_env"
+  S_RC=0
+  env 'BASH_FUNC_omapass_cmd_evil%%=() { echo injected; exit 0; }' \
+    'BASH_FUNC_printf%%=() { echo hijacked; }' \
+    BASH_ENV="$OMAPASS_SANDBOX/bash_env" \
+    "$HELPER" evil >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
+  S_OUT="$(<"$OMAPASS_SANDBOX/stdout")"
+  assert_one_json_line
+  assert_eq '{"ok":false,"error":"failed","reason":"unknown_subcommand"}' "$S_OUT"
+  assert_eq 2 "$S_RC"
+}
+run_test "functions and BASH_ENV from the environment are ignored" test_env_functions_ignored
+
 for SCEN in "${SCENARIOS[@]}"; do
   run_test "scenario $SCEN" test_scenario
 done

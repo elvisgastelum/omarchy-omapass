@@ -1,6 +1,7 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S bash -p
 # Omapass helper: the only process that talks to pass-cli. Contract: docs/CONTRACT.md.
 # Subcommands live in bin/lib/*.sh as omapass_cmd_<name>; this file never needs editing to add one.
+# -p: functions, BASH_ENV and SHELLOPTS from the environment must not change what runs.
 set -euo pipefail
 set +x
 umask 077
