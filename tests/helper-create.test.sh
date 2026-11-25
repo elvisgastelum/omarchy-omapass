@@ -64,7 +64,9 @@ assert_ok_created() { # type
 
 test_login_explicit_password() {
   local form='{"title":"Example","username":"alice","email":"a@example.com","password":"CANARY-PW-explicit","urls":["https://example.com","https://b.example.com"],"totp_uri":"otpauth://totp/x?secret=ABC"}'
+  local dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create login
+  export OMAPASS_DEBUG=1
   run_create login "$form"
   assert_ok_created login
   jq -e . "$OMAPASS_MOCK_STDIN_DIR/$(create_key login).stdin" >/dev/null || _omapass_fail "template is not JSON"
@@ -75,6 +77,7 @@ test_login_explicit_password() {
   assert_eq "pass-cli --version
 pass-cli item create login --get-template
 pass-cli item create login --share-id $SHARE --from-template -" "$(mock_log)"
+  assert_file_exists "$dbg"
   assert_no_leak CANARY-PW
 }
 
@@ -101,35 +104,46 @@ test_login_generate_random_options() {
 }
 
 test_login_generate_passphrase() {
+  local dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create login
+  export OMAPASS_DEBUG=1
   fx "$GEN_PASS_DEFAULT.json" '{"password":"GENSECRET-PASS-one"}'
   run_create login '{"title":"P","generate":{"kind":"passphrase"}}'
   assert_ok_created login
   assert_contains "$(mock_log)" "pass-cli password generate passphrase --separator hyphens --capitalise true --numbers true --count 5 --output json"
   assert_eq "GENSECRET-PASS-one" "$(captured login | jq -r .password)"
+  assert_file_exists "$dbg"
+  assert_no_leak GENSECRET-PASS-one
 
+  rm -f "$dbg"
   : >"$OMAPASS_MOCK_LOG"
   fx "$GEN_PASS_CUSTOM.json" '{"password":"GENSECRET-PASS-two"}'
   run_create login '{"title":"P","generate":{"kind":"passphrase","separator":"spaces","capitalise":false,"count":6}}'
   assert_ok_created login
   assert_contains "$(mock_log)" "pass-cli password generate passphrase --separator spaces --capitalise false --numbers true --count 6 --output json"
   assert_eq "GENSECRET-PASS-two" "$(captured login | jq -r .password)"
+  assert_file_exists "$dbg"
   assert_no_leak GENSECRET-PASS-one GENSECRET-PASS-two
 }
 
 test_generator_output_shapes() {
-  local shape name
+  local shape name dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create login
+  export OMAPASS_DEBUG=1
   for shape in '"GENSECRET-BARE"' '{"passphrase":"GENSECRET-BARE"}' '{"value":"GENSECRET-BARE"}'; do
+    rm -f "$dbg"
     : >"$OMAPASS_MOCK_LOG"
     fx "$GEN_RANDOM_DEFAULT.json" "$shape"
     run_create login '{"title":"S","generate":{"kind":"random"}}'
     assert_ok_created login
     assert_eq "GENSECRET-BARE" "$(captured login | jq -r .password)" "password for $shape"
+    assert_file_exists "$dbg"
     assert_no_leak GENSECRET-BARE
   done
   rm -f "$OMAPASS_FIXTURES/pass-cli/$GEN_RANDOM_DEFAULT.json"
+  fx "$GEN_RANDOM_DEFAULT.stderr" "GENSECRET-PLAIN" # a canary in play for every shape below
   for name in '{}' '{"password":""}' '[1]' 'GENSECRET-PLAIN'; do
+    rm -f "$dbg"
     : >"$OMAPASS_MOCK_LOG"
     rm -f "$OMAPASS_FIXTURES/pass-cli/$GEN_RANDOM_DEFAULT".{json,txt}
     case "$name" in
@@ -139,6 +153,7 @@ test_generator_output_shapes() {
     run_create login '{"title":"S","generate":{"kind":"random"}}'
     assert_error failed bad_output 1
     assert_no_create_call login
+    assert_file_exists "$dbg"
     assert_no_leak GENSECRET-PLAIN
   done
 }
@@ -156,10 +171,14 @@ test_generator_failure() {
 }
 
 test_note() {
+  local dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create note
-  run_create note '{"title":"My note","note":"line one\nline two"}'
+  export OMAPASS_DEBUG=1
+  run_create note '{"title":"My note","note":"CANARY-NOTE line one\nline two"}'
   assert_ok_created note
-  assert_eq '{"title":"My note","note":"line one\nline two","extra_fields":[]}' "$(captured note | jq -c .)"
+  assert_eq '{"title":"My note","note":"CANARY-NOTE line one\nline two","extra_fields":[]}' "$(captured note | jq -c .)"
+  assert_file_exists "$dbg"
+  assert_no_leak CANARY-NOTE
 
   run_create note '{"title":"Bare"}'
   assert_ok_created note
@@ -167,12 +186,15 @@ test_note() {
 }
 
 test_custom() {
+  local dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create custom
+  export OMAPASS_DEBUG=1
   run_create custom '{"title":"C","note":"n","section":"Logins","fields":[{"name":"PIN","value":"CANARY-PIN","hidden":true},{"name":"Site","value":"x"}]}'
   assert_ok_created custom
   assert_eq '{"title":"C","note":"n"}' "$(captured custom | jq -c '{title,note}')"
   assert_eq '[{"section_name":"Logins","fields":[{"field_name":"PIN","field_type":"hidden","value":"CANARY-PIN"},{"field_name":"Site","field_type":"text","value":"x"}]}]' \
     "$(captured custom | jq -c .sections)"
+  assert_file_exists "$dbg"
   assert_no_leak CANARY-PIN
 
   run_create custom '{"title":"C"}'
@@ -186,8 +208,9 @@ test_custom() {
 }
 
 test_invalid_form() {
-  local form big i=0 label
+  local form big i=0 label dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create login
+  export OMAPASS_DEBUG=1
   big="$(printf '%070000d' 0)"
   local -a forms=(
     '' 'not json' '[1]' '{} {}' '{"note":"x"}' '{"title":""}' '{"title":"t","bogus":1}'
@@ -202,18 +225,23 @@ test_invalid_form() {
   for form in "${forms[@]}"; do
     i=$((i + 1))
     label="login form #$i"
+    rm -f "$dbg"
     : >"$OMAPASS_MOCK_LOG"
     run_create login "$form"
     assert_eq '{"ok":false,"error":"failed","reason":"bad_input"}' "$S_OUT" "$label"
     assert_eq 1 "$S_RC" "$label exit code"
     assert_eq "" "$(mock_log)" "$label mock log"
+    assert_file_exists "$dbg"
+    assert_no_leak CANARY-PW
   done
   setup_create custom
+  rm -f "$dbg"
   : >"$OMAPASS_MOCK_LOG"
-  run_create custom '{"title":"t","fields":[{"value":"x"}]}'
+  run_create custom '{"title":"t","fields":[{"value":"CANARY-PW"}]}'
   assert_eq '{"ok":false,"error":"failed","reason":"bad_input"}' "$S_OUT"
   assert_eq 1 "$S_RC" "exit code"
   assert_eq "" "$(mock_log)" "mock log"
+  assert_file_exists "$dbg"
   assert_no_leak CANARY-PW
 }
 
@@ -240,13 +268,16 @@ test_usage() {
 }
 
 test_item_create_failure() {
+  local dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create login
   fx "$(create_key login).stderr" "Session is locked"
   fx "$(create_key login).exit" "1"
+  export OMAPASS_DEBUG=1
   run_create login '{"title":"t","password":"CANARY-PW"}'
   assert_eq false "$(jq -r .ok <<<"$S_OUT")"
   assert_eq locked "$(jq -r .error <<<"$S_OUT")"
   assert_eq 11 "$S_RC" "locked exit code"
+  assert_file_exists "$dbg"
   assert_no_leak CANARY-PW
 }
 
@@ -259,11 +290,11 @@ test_template_missing_key() {
 }
 
 test_secrets_not_exported() {
-  local envlog="$OMAPASS_SANDBOX/mock.env"
+  local envlog="$OMAPASS_SANDBOX/mock.env" dbg="$XDG_RUNTIME_DIR/omapass/debug.log"
   setup_create login
   fx "$GEN_RANDOM_DEFAULT.json" "{\"password\":\"$GEN_SECRET\"}"
   export OMAPASS_CREATE_FORM=inherited OMAPASS_CREATE_SECRET=inherited OMAPASS_CREATE_FILLED=inherited
-  export OMAPASS_MOCK_ENV_LOG="$envlog"
+  export OMAPASS_MOCK_ENV_LOG="$envlog" OMAPASS_DEBUG=1
   run_create login '{"title":"Env","username":"CANARY-ENV-user","generate":{"kind":"random"}}'
   assert_ok_created login
   assert_eq "$GEN_SECRET" "$(captured login | jq -r .password)"
@@ -271,6 +302,7 @@ test_secrets_not_exported() {
   assert_not_contains "$(<"$envlog")" "$GEN_SECRET" "generated password in pass-cli env"
   assert_not_contains "$(<"$envlog")" "CANARY-ENV-user" "form in pass-cli env"
   assert_not_contains "$(<"$envlog")" "OMAPASS_CREATE_" "create globals exported"
+  assert_file_exists "$dbg"
   assert_no_leak "$GEN_SECRET" CANARY-ENV-user
 }
 
