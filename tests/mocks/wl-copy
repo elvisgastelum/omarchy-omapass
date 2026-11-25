@@ -12,6 +12,7 @@ while [[ $# -gt 0 ]]; do
     -o | --paste-once) once=1 ;;
     -n | --trim-newline) trim=1 ;;
     -p | --primary) ;;
+    --sensitive | -f | --foreground) ;;
     -t | --type)
       opts="$opts $1 ${2:-}"
       shift
@@ -19,6 +20,10 @@ while [[ $# -gt 0 ]]; do
       continue
       ;;
     --) shift; break ;;
+    -?*)
+      echo "mock wl-copy: unsupported option: $1" >&2
+      exit 1
+      ;;
     *) break ;;
   esac
   opts="$opts $1"

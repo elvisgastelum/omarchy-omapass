@@ -5,7 +5,6 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-HELPER="$REPO_ROOT/bin/omapass-helper"
 CONTRACT_JSON="$(sed -n '/<!-- contract:begin -->/,/<!-- contract:end -->/p' "$REPO_ROOT/docs/CONTRACT.md" | grep -v -e '^<!--' -e '^```')"
 SCEN=""
 SCENARIOS=()
@@ -23,14 +22,6 @@ contract_exit() { # error [reason]
   jq -r --arg e "$1" '.exit_codes[$e]' <<<"$CONTRACT_JSON"
 }
 
-# run_helper <args...>: sets S_OUT, S_ERR, S_RC; stdout is also kept in $OMAPASS_SANDBOX/stdout.
-run_helper() {
-  S_RC=0
-  "$HELPER" "$@" >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
-  S_OUT="$(<"$OMAPASS_SANDBOX/stdout")"
-  S_ERR="$(<"$OMAPASS_SANDBOX/stderr")"
-}
-
 # run_scenario <name>: sets up the fixtures and runs the scenario's subcommand with its env.
 run_scenario() {
   local name="$1" dir="$TESTS_DIR/fixtures/scenarios/$1" sub line
@@ -41,7 +32,7 @@ run_scenario() {
     envs+=("$line")
   done < <(jq -r '(.env // {}) | to_entries[] | "\(.key)=\(.value)"' "$dir/expect.json")
   S_RC=0
-  env "${envs[@]}" "$HELPER" "$sub" >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
+  env "${envs[@]}" "$OMAPASS_HELPER" "$sub" >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
   S_OUT="$(<"$OMAPASS_SANDBOX/stdout")"
   S_ERR="$(<"$OMAPASS_SANDBOX/stderr")"
 }
@@ -56,7 +47,7 @@ test_scenario() {
   run_scenario "$SCEN"
   assert_one_json_line
   assert_eq "" "$S_ERR" "stderr"
-  assert_not_contains "$S_OUT" CANARY
+  assert_no_leak CANARY
   if [[ "$(jq -r '.ok // false' "$dir/expect.json")" == true ]]; then
     assert_eq 0 "$S_RC" "exit code"
     assert_eq true "$(jq -r .ok <<<"$S_OUT")"
@@ -198,7 +189,7 @@ test_autoload() {
   S_OUT="$("$OMAPASS_SANDBOX/copy/bin/omapass-helper" probe-thing 2>/dev/null)" || S_RC=$?
   assert_eq 0 "$S_RC"
   assert_eq '{"ok":true,"probe":true}' "$S_OUT"
-  cmp "$HELPER" "$OMAPASS_SANDBOX/copy/bin/omapass-helper"
+  cmp "$OMAPASS_HELPER" "$OMAPASS_SANDBOX/copy/bin/omapass-helper"
 }
 
 run_copied() {
@@ -292,14 +283,14 @@ test_debug_log() {
   for mode in stderr garbage fail huge; do
     S_RC=0
     OMAPASS_HOSTILE_MODE="$mode" OMAPASS_HOSTILE_CANARY=CANARY-HOSTILE \
-      "$HELPER" status >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
+      "$OMAPASS_HELPER" status >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
     S_OUT="$(<"$OMAPASS_SANDBOX/stdout")"
     S_ERR="$(<"$OMAPASS_SANDBOX/stderr")"
     assert_ne 0 "$S_RC" "hostile $mode exit"
     assert_eq false "$(jq -r .ok <<<"$S_OUT")" "hostile $mode"
     assert_eq failed "$(jq -r .error <<<"$S_OUT")" "hostile $mode"
     assert_eq "" "$S_ERR" "hostile $mode stderr"
-    assert_not_contains "$S_OUT" CANARY
+    assert_no_leak CANARY
   done
   assert_file_exists "$log"
   assert_eq 600 "$(stat -c %a "$log")"
@@ -307,7 +298,7 @@ test_debug_log() {
   content="$(<"$log")"
   [[ "$content" =~ event=pass-cli\ cmd=\"vault\ list\"\ rc=[0-9]+\ ms=[0-9]+ ]] || _omapass_fail "no vault list line in log"
   [[ "$content" =~ [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}\.[0-9]{3}Z\ pid=[0-9]+\ sub=status\ event=start ]] || _omapass_fail "no start line"
-  assert_not_contains "$content" CANARY
+  assert_no_leak CANARY
   assert_not_contains "$content" "FIXTURE-"
   assert_not_contains "$content" "Fixture Personal"
   assert_not_contains "$content" "--output"
@@ -384,7 +375,7 @@ test_bad_lib_broken() {
 test_env_sub_ignored() {
   local log="$XDG_RUNTIME_DIR/omapass/debug.log" content
   S_RC=0
-  OMAPASS_DEBUG=1 OMAPASS_SUB='CANARY x=1' "$HELPER" nope >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
+  OMAPASS_DEBUG=1 OMAPASS_SUB='CANARY x=1' "$OMAPASS_HELPER" nope >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
   assert_eq 2 "$S_RC"
   content="$(<"$log")"
   assert_contains "$content" "sub=unknown" "debug log sub"
@@ -394,7 +385,7 @@ test_env_sub_ignored() {
 test_env_pass_stderr_ignored() {
   use_fixture_scenario signed_out
   S_RC=0
-  OMAPASS_PASS_STDERR="$OMAPASS_SANDBOX/outside.err" "$HELPER" status >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
+  OMAPASS_PASS_STDERR="$OMAPASS_SANDBOX/outside.err" "$OMAPASS_HELPER" status >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
   S_OUT="$(<"$OMAPASS_SANDBOX/stdout")"
   assert_eq signed_out "$(jq -r .error <<<"$S_OUT")"
   [[ ! -e "$OMAPASS_SANDBOX/outside.err" ]] || _omapass_fail "OMAPASS_PASS_STDERR was honored"
@@ -406,7 +397,7 @@ test_env_functions_ignored() {
   env 'BASH_FUNC_omapass_cmd_evil%%=() { echo injected; exit 0; }' \
     'BASH_FUNC_printf%%=() { echo hijacked; }' \
     BASH_ENV="$OMAPASS_SANDBOX/bash_env" \
-    "$HELPER" evil >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
+    "$OMAPASS_HELPER" evil >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" </dev/null || S_RC=$?
   S_OUT="$(<"$OMAPASS_SANDBOX/stdout")"
   assert_one_json_line
   assert_eq '{"ok":false,"error":"failed","reason":"unknown_subcommand"}' "$S_OUT"
