@@ -74,7 +74,7 @@ callers branch on `error`. Callers map any `error` they do not know to `failed`.
 
 Reason tokens: `usage`, `unknown_subcommand`, `missing_pass_cli`,
 `bad_version`, `bad_output`, `bad_input`, `bad_lib` (a `bin/lib` file was
-refused).
+refused). Planned: `no_lock` (OPA-16, see [Session lock](#session-lock)).
 
 ## Classifying `pass-cli` failures
 
@@ -111,24 +111,91 @@ shows up from `list` (the `--show-secrets` refusal). The `status` mapping for
 Fixtures are keyed by the exact argument list (see `tests/mocks/pass-cli`), so
 callers must pass arguments in exactly this order.
 
-| use | command | owner |
-|-----|---------|-------|
-| version | `pass-cli --version` | OPA-10 |
-| session probe, vaults | `pass-cli vault list --output json` | OPA-10, OPA-13 |
-| list a vault | `pass-cli item list --share-id <S> --filter-state active --output json --show-secrets` | OPA-13 |
-| agent-session fallback | `pass-cli item list --share-id <S> --filter-state active --output json` | OPA-13 |
-| copy a field | `pass-cli item view --share-id <S> --item-id <I> --output json` (piped to `jq`, then `wl-copy`) | OPA-14 |
-| copy TOTP | `pass-cli item totp --share-id <S> --item-id <I> --output json` | OPA-14 |
-| trash / untrash | `pass-cli item trash --share-id <S> --item-id <I>`, `pass-cli item untrash ...` | OPA-16 |
-| lock | `pass-cli session lock` | OPA-16 |
-| logout | `pass-cli logout` | OPA-16 |
-| create | `pass-cli item create <type> --get-template`, then `pass-cli item create <type> --share-id <S> --from-template -` | OPA-18, OPA-23 |
-| create alias | `pass-cli item alias create --share-id <S> --prefix <P> --output json` | OPA-23 |
-| generate | `pass-cli password generate random ...` / `passphrase ...` (inside `create` only) | OPA-18 |
+Every row was checked against `pass-cli <subcommand...> --help` from
+`Proton Pass CLI 2.7.1 (cae479b)`. **verified** covers the subcommand and the
+flags only; what `--help` cannot show (JSON output shapes, error texts) stays
+**unverified** and is marked so.
+
+| use | command | owner | status |
+|-----|---------|-------|--------|
+| version | `pass-cli --version` | OPA-10 | verified, output too |
+| session probe, vaults | `pass-cli vault list --output json` | OPA-10, OPA-13 | verified |
+| list a vault | `pass-cli item list --share-id <S> --filter-state active --output json --show-secrets` | OPA-13 | verified; `--filter-state` takes `active` or `trashed`; `--show-secrets` needs `--output json` and is not allowed with agent sessions |
+| agent-session fallback | `pass-cli item list --share-id <S> --filter-state active --output json` | OPA-13 | verified |
+| copy a field | `pass-cli item view --share-id <S> --item-id <I> --output json` (piped to `jq`, then `wl-copy --sensitive`) | OPA-14 | verified flags; JSON shape unverified. Never `--field`, `--item-title`, `--vault-name` or a `pass://` URI |
+| copy TOTP | `pass-cli item totp --share-id <S> --item-id <I> --output json` | OPA-14 | verified flags; JSON shape unverified. `--field` (one TOTP field of several) exists and is not used |
+| trash | `pass-cli item trash --share-id <S> --item-id <I>` | OPA-16 | verified. Never `--item-title` or `--vault-name` |
+| untrash | `pass-cli item untrash --share-id <S> --item-id <I>` | OPA-16 | corrected: was `item untrash ...`; same flags as `trash` |
+| lock | `pass-cli session lock` | OPA-16 | verified; no options; requires an existing lock, see [Session lock](#session-lock) |
+| logout | `pass-cli logout` | OPA-16 | verified; `--force` (log out even if remote logout fails) exists and is not passed |
+| login | `pass-cli login` (in a terminal) | OPA-16 | added, verified; `--pat <PAT>` exists and is never passed (a token on argv) |
+| unlock | `pass-cli session unlock` (in a terminal) | OPA-16 | added, verified; no options; how it reads the lock code is unverified |
+| create | `pass-cli item create <type> --get-template`, then `pass-cli item create <type> --share-id <S> --from-template -` | OPA-18, OPA-23 | verified for `login`, `note`, `credit-card`, `wifi`, `identity`, `custom`. Corrected: `ssh-key` has no `--get-template` and `item create alias` does not exist; both have their own rows |
+| create SSH key | `pass-cli item create ssh-key generate --share-id <S> --title <T> --key-type <K> [--comment <C>]` | OPA-23 | added, verified |
+| import SSH key | `pass-cli item create ssh-key import --share-id <S> --title <T> --from-private-key <FILE>` | OPA-23 | added, verified; how the key reaches `<FILE>` is decided in OPA-23 (for example a private temp file written under `umask 077` and deleted on exit; the key itself never goes on argv) |
+| create alias | `pass-cli item alias create --share-id <S> --prefix <P> --output json` | OPA-23 | verified; `--output` defaults to `human`, so `json` must be passed; JSON shape unverified |
+| generate | `pass-cli password generate random <options> --output json` / `pass-cli password generate passphrase <options> --output json` (inside `create` only) | OPA-18 | verified flags; JSON shape unverified |
 
 `pass-cli --version` prints `Proton Pass CLI 2.7.1 (cae479b)` (verified). The
 helper takes the first `MAJOR.MINOR.PATCH` and compares it numerically with
 2.7.1.
+
+### Options from `--help`
+
+All verified against 2.7.1 `--help`. Flag names are exact; placeholders in
+the tables above are shortened (`<S>`, `<FILE>`), and the list below uses
+the help text's own placeholders.
+
+- `password generate random`: `--length <LENGTH>` (default 16); `--numbers`,
+  `--uppercase`, `--symbols`, each `true` or `false` (default `true`);
+  `--output human|json` (default `human`).
+- `password generate passphrase`: `--separator` one of `hyphens`, `spaces`,
+  `periods`, `commas`, `underscores`, `numbers`, `numbers-and-symbols`
+  (default `hyphens`); `--capitalise true|false` (alias `--capitalize`,
+  default `true`); `--numbers true|false` (default `true`); `--count <COUNT>`
+  (default 5); `--output human|json` (default `human`).
+- `item create ssh-key generate`: `--title <TITLE>` (required); `--key-type`
+  one of `ed25519`, `rsa2048`, `rsa4096` (default `ed25519`);
+  `--comment <COMMENT>`; `--password` (a flag that enables a key passphrase; how it reads the
+  passphrase is unverified, so the helper does not pass it); `--share-id`,
+  `--vault-name`, `--folder-id`.
+- `item create ssh-key import`: `--from-private-key <PRIVATE_KEY_FILE>` and
+  `--title <TITLE>` (both required); `--password` (as above); `--share-id`,
+  `--vault-name`, `--folder-id`.
+- `item alias create`: `--prefix <PREFIX>` (required; the address is
+  `[prefix].[suffix]`); `--share-id`, `--vault-name`; `--output human|json`.
+- `item create login|note|credit-card|wifi|identity|custom`: `--get-template`,
+  `--from-template <FROM_TEMPLATE>` (a path or `-` for stdin), `--share-id`, `--vault-name`, `--folder-id`.
+  `login`, `note`, `credit-card` and `wifi` also take per-field flags
+  (`--password`, `--cvv`, `--pin`, `--number`, `--generate-password[=...]` and
+  others). They would put secrets on argv, so the helper never uses them
+  (rule 4); it always goes through `--from-template -`.
+- `item list`: also `--vault-name`, a positional `[VAULT_NAME]`,
+  `--filter-type` and `--sort-by`; the helper addresses vaults by share ID
+  only.
+- `session create-lock`: `--idle-timeout <IDLE_TIMEOUT>` in seconds (30 to
+  900, default 300); how it reads the lock code is unverified. `session
+  remove-lock` takes no options. The helper runs neither.
+
+### Session lock
+
+`pass-cli session lock` "requires an existing lock" (verified, `--help`): a
+lock code must first be set with `pass-cli session create-lock`. What
+`session lock` prints and exits with when no lock exists is unverified.
+
+Decision for `lock` (OPA-16): the helper clears its clipboard state first,
+then runs `pass-cli session lock`. When that fails because the session has no
+lock, `lock` returns `{"ok":false,"error":"failed","reason":"no_lock"}` (exit
+1), and the UI says that no lock code is set and offers to open a terminal
+running `pass-cli session create-lock`. Every other failure goes through the
+error classifier as usual. The helper never logs out instead: that would
+force a full sign-in for a user who only asked to lock.
+
+`no_lock` is a planned reason token. It is not yet in the JSON block below,
+because `tests/model.test.mjs` requires `Model.REASONS` to equal its
+`reasons` list. OPA-16 adds `no_lock` to the JSON block, to the reason
+allowlist in `omapass_fail` (`bin/lib/core.sh`) and to `Model.REASONS` in the
+same change, and confirms the real no-lock error text before matching it.
 
 ## Subcommands
 
@@ -287,15 +354,23 @@ key kept `0600` in `$XDG_RUNTIME_DIR`. Unknown fields: `not_found`.
 {"ok":true,"state":"signed_out"}
 ```
 
-`lock` also clears the clipboard. `login` and `unlock` open a terminal; the
-password or PIN is typed there and never reaches the helper.
+`lock` also clears the clipboard; with no session lock it will fail with
+`failed` + `no_lock` (a planned reason, added by OPA-16; see
+[Session lock](#session-lock)). `login` and `unlock`
+open a terminal; the password or lock code is entered there (or in the browser
+`pass-cli login` opens; unverified) and never reaches the helper.
 
 ### `create`
 
 `create <type> --share-id <S>` reads the form JSON on stdin, fills the
 `--get-template` output with `jq` and pipes it to
-`pass-cli item create <type> --share-id <S> --from-template -`. Invalid form
-JSON is `failed` + `bad_input` and `pass-cli` is not called.
+`pass-cli item create <type> --share-id <S> --from-template -`. This template
+path covers `login`, `note`, `credit-card`, `wifi`, `identity` and `custom`
+only: `ssh-key` has no `--get-template` and uses `item create ssh-key
+generate` or `import`, and an alias uses `item alias create` (see
+[pass-cli invocations](#pass-cli-invocations)); OPA-23 maps their form fields
+to those flags. Invalid form JSON is `failed` + `bad_input` and `pass-cli` is
+not called.
 
 ```json
 {"ok":true,"type":"login","share_id":"..."}
