@@ -1,0 +1,25 @@
+{
+  "item": {
+    "id": "FIXTURE-ITEM-A3==",
+    "share_id": "FIXTURE-SHARE-A==",
+    "vault_id": "FIXTURE-VAULT-A==",
+    "state": "Active",
+    "flags": [],
+    "create_time": "2026-01-03T10:00:00Z",
+    "modify_time": "2026-02-03T10:00:00Z",
+    "last_use_time": "2026-03-03T10:00:00Z",
+    "alias_email": "fixture.alias@example.invalid",
+    "content": {
+      "title": "Fixture Alias",
+      "note": "",
+      "item_uuid": "FIXTURE-UUID-A3",
+      "content": {
+        "Alias": null
+      },
+      "extra_fields": [],
+      "custom_icon": null,
+      "platform_specific": null
+    }
+  },
+  "attachments": []
+}

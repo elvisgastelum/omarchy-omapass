@@ -1,0 +1,69 @@
+{
+  "item": {
+    "id": "FIXTURE-ITEM-B2==",
+    "share_id": "FIXTURE-SHARE-B==",
+    "vault_id": "FIXTURE-VAULT-B==",
+    "state": "Active",
+    "flags": [],
+    "create_time": "2026-01-02T10:00:00Z",
+    "modify_time": "2026-02-02T10:00:00Z",
+    "last_use_time": "2026-03-02T11:00:00Z",
+    "content": {
+      "title": "Fixture Identity",
+      "note": "CANARY-IDENTITY-NOTE-1",
+      "item_uuid": "FIXTURE-UUID-B2",
+      "content": {
+        "Identity": {
+          "birthdate": "CANARY-IDENTITY-BIRTHDATE",
+          "city": "CANARY-IDENTITY-CITY",
+          "company": "CANARY-IDENTITY-COMPANY",
+          "country_or_region": "CANARY-IDENTITY-COUNTRY-OR-REGION",
+          "county": "",
+          "email": "CANARY.identity@example.invalid",
+          "facebook": "CANARY-IDENTITY-FACEBOOK",
+          "first_name": "CANARY-IDENTITY-FIRST-NAME",
+          "floor": "",
+          "full_name": "CANARY-IDENTITY-FULL-NAME",
+          "gender": "CANARY-IDENTITY-GENDER",
+          "instagram": "CANARY-IDENTITY-INSTAGRAM",
+          "job_title": "CANARY-IDENTITY-JOB-TITLE",
+          "last_name": "CANARY-IDENTITY-LAST-NAME",
+          "license_number": "CANARY-IDENTITY-LICENSE-NUMBER",
+          "linkedin": "CANARY-IDENTITY-LINKEDIN",
+          "middle_name": "CANARY-IDENTITY-MIDDLE-NAME",
+          "organization": "CANARY-IDENTITY-ORGANIZATION",
+          "passport_number": "CANARY-IDENTITY-PASSPORT-NUMBER",
+          "personal_website": "CANARY-IDENTITY-PERSONAL-WEBSITE",
+          "phone_number": "CANARY-IDENTITY-PHONE-NUMBER",
+          "reddit": "",
+          "second_phone_number": "",
+          "social_security_number": "CANARY-IDENTITY-SOCIAL-SECURITY-NUMBER",
+          "state_or_province": "CANARY-IDENTITY-STATE-OR-PROVINCE",
+          "street_address": "CANARY-IDENTITY-STREET-ADDRESS",
+          "website": "CANARY-IDENTITY-WEBSITE",
+          "work_email": "CANARY.work@example.invalid",
+          "work_phone_number": "CANARY-IDENTITY-WORK-PHONE-NUMBER",
+          "x_handle": "CANARY-IDENTITY-X-HANDLE",
+          "yahoo": "",
+          "zip_or_postal_code": "CANARY-IDENTITY-ZIP-OR-POSTAL-CODE",
+          "extra_address_details": [],
+          "extra_contact_details": [
+            {
+              "name": "Fixture Contact Detail",
+              "content": {
+                "Hidden": "CANARY-IDENTITY-CONTACT-1"
+              }
+            }
+          ],
+          "extra_personal_details": [],
+          "extra_work_details": [],
+          "extra_sections": []
+        }
+      },
+      "extra_fields": [],
+      "custom_icon": null,
+      "platform_specific": null
+    }
+  },
+  "attachments": []
+}

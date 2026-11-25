@@ -1,0 +1,40 @@
+{
+  "item": {
+    "id": "FIXTURE-ITEM-B3==",
+    "share_id": "FIXTURE-SHARE-B==",
+    "vault_id": "FIXTURE-VAULT-B==",
+    "state": "Active",
+    "flags": [],
+    "create_time": "2026-01-03T10:00:00Z",
+    "modify_time": "2026-02-03T10:00:00Z",
+    "last_use_time": "2026-03-03T10:00:00Z",
+    "content": {
+      "title": "Fixture SSH Key",
+      "note": "",
+      "item_uuid": "FIXTURE-UUID-B3",
+      "content": {
+        "SshKey": {
+          "private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\nCANARY-SSH-PRIVATE-1\n-----END OPENSSH PRIVATE KEY-----",
+          "public_key": "ssh-ed25519 CANARY-SSH-PUBLIC-1 fixture",
+          "sections": [
+            {
+              "section_name": "Fixture SSH Section",
+              "section_fields": [
+                {
+                  "name": "Fixture SSH Hidden Field",
+                  "content": {
+                    "Hidden": "CANARY-SSH-SECTION-1"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "extra_fields": [],
+      "custom_icon": null,
+      "platform_specific": null
+    }
+  },
+  "attachments": []
+}
