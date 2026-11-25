@@ -121,6 +121,109 @@ test_clipboard_paste_once() {
   assert_not_contains "$(cat "$OMAPASS_MOCK_LOG")" "secret-once"
 }
 
+test_guard_fails_on_foreign_terminal() {
+  local name err rc
+  for name in xdg-terminal-exec omarchy-launch-tui; do
+    mkdir -p "$HOME/fakebin"
+    printf '#!/bin/sh\nexit 0\n' >"$HOME/fakebin/$name"
+    chmod +x "$HOME/fakebin/$name"
+    rc=0
+    err="$(PATH="$HOME/fakebin:$PATH" omapass_guard 2>&1)" || rc=$?
+    assert_ne 0 "$rc" "$name"
+    assert_contains "$err" "$name"
+    rm -f "$HOME/fakebin/$name"
+  done
+}
+
+test_assert_no_leak_clean() {
+  assert_no_leak
+  assert_no_leak CANARY CANARY-X
+}
+
+test_assert_no_leak_sources() {
+  local f rc
+  mkdir -p "$XDG_RUNTIME_DIR/omapass"
+  for f in "$OMAPASS_SANDBOX/stdout" "$OMAPASS_SANDBOX/stderr" \
+    "$XDG_RUNTIME_DIR/omapass/debug.log" "$OMAPASS_MOCK_LOG"; do
+    : >"$f"
+    assert_no_leak CANARY-X
+    echo "x CANARY-X y" >"$f"
+    rc=0
+    (assert_no_leak CANARY-X) >/dev/null 2>&1 || rc=$?
+    assert_ne 0 "$rc" "leak in $f"
+    : >"$f"
+  done
+  # The stdin capture dir is not a checked source.
+  echo CANARY-X >"$OMAPASS_MOCK_STDIN_DIR/last.stdin"
+  assert_no_leak CANARY-X
+}
+
+test_pass_cli_records_stdin() {
+  local dir="$OMAPASS_SANDBOX/fx" tpl
+  mkdir -p "$dir/pass-cli"
+  echo '{}' >"$dir/pass-cli/item__create__login.txt"
+  OMAPASS_FIXTURES="$dir"
+  tpl=$'{\n  "title": "TPL-BODY",\n  "password": "TPL-PW"\n}\n'
+  printf '%s' "$tpl" | pass-cli item create login >/dev/null
+  printf '%s' "$tpl" >"$OMAPASS_SANDBOX/expected"
+  cmp "$OMAPASS_SANDBOX/expected" "$OMAPASS_MOCK_STDIN_DIR/item__create__login.stdin"
+  cmp "$OMAPASS_SANDBOX/expected" "$OMAPASS_MOCK_STDIN_DIR/last.stdin"
+  assert_contains "$(cat "$OMAPASS_MOCK_LOG")" "pass-cli item create login"
+  assert_not_contains "$(cat "$OMAPASS_MOCK_LOG")" "TPL-"
+}
+
+test_wl_copy_sensitive() {
+  printf 'secret' | wl-copy --sensitive
+  assert_eq "secret" "$(wl-paste -n)"
+  assert_contains "$(cat "$OMAPASS_MOCK_LOG")" "wl-copy --sensitive"
+  assert_not_contains "$(cat "$OMAPASS_MOCK_LOG")" "secret"
+  printf 's' | wl-copy --sensitive -o
+  assert_contains "$(cat "$OMAPASS_MOCK_LOG")" "wl-copy --sensitive -o"
+  assert_eq "s" "$(wl-paste -n)"
+  assert_ne "s" "$(wl-paste -n)" "paste-once survived a second read"
+}
+
+test_wl_copy_unknown_option() {
+  local err rc=0
+  printf 'keep' | wl-copy
+  err="$(wl-copy --bogus 2>&1)" || rc=$?
+  assert_eq 1 "$rc"
+  assert_contains "$err" "unsupported option: --bogus"
+  assert_eq "keep" "$(wl-paste -n)"
+}
+
+test_terminal_mock() {
+  local rc=0 err
+  xdg-terminal-exec --app-id=org.omarchy.pass-cli -e pass-cli login
+  assert_contains "$(cat "$OMAPASS_MOCK_LOG")" "xdg-terminal-exec --app-id=org.omarchy.pass-cli -e pass-cli login"
+  : >"$OMAPASS_MOCK_LOG"
+  omarchy-launch-tui --app-id=org.omarchy.pass-cli -e pass-cli login
+  assert_eq "omarchy-launch-tui --app-id=org.omarchy.pass-cli -e pass-cli login" "$(cat "$OMAPASS_MOCK_LOG")"
+  assert_status 1 env OMAPASS_MOCK_TERMINAL=fail xdg-terminal-exec -e pass-cli login
+  err="$(OMAPASS_MOCK_TERMINAL=fail xdg-terminal-exec -e pass-cli login 2>&1 || true)"
+  assert_contains "$err" "simulated failure"
+  assert_status 2 env OMAPASS_MOCK_TERMINAL=bogus xdg-terminal-exec -e pass-cli login
+  assert_status 2 xdg-terminal-exec --app-id=x -e
+  : >"$OMAPASS_MOCK_LOG"
+  mkdir -p "$OMAPASS_SANDBOX/fx/pass-cli"
+  echo ok >"$OMAPASS_SANDBOX/fx/pass-cli/login.txt"
+  OMAPASS_FIXTURES="$OMAPASS_SANDBOX/fx"
+  OMAPASS_MOCK_TERMINAL=run xdg-terminal-exec --title=t -e pass-cli login >/dev/null || rc=$?
+  assert_eq 0 "$rc"
+  assert_contains "$(cat "$OMAPASS_MOCK_LOG")" $'\npass-cli login'
+}
+
+test_run_helper() {
+  printf '#!/usr/bin/env bash\necho to-out\necho to-err >&2\nexit 3\n' >"$OMAPASS_SANDBOX/fake-helper"
+  chmod +x "$OMAPASS_SANDBOX/fake-helper"
+  OMAPASS_HELPER="$OMAPASS_SANDBOX/fake-helper"
+  run_helper a b
+  assert_eq 3 "$S_RC"
+  assert_eq to-out "$S_OUT"
+  assert_eq to-err "$S_ERR"
+  assert_eq to-out "$(<"$OMAPASS_SANDBOX/stdout")"
+}
+
 OMAPASS_TEST_SCRATCH="$(mktemp)"
 trap 'rm -f "$OMAPASS_TEST_SCRATCH"' EXIT
 export OMAPASS_TEST_SCRATCH
@@ -139,4 +242,12 @@ run_test "hostile fail exits 1" test_hostile_fail
 run_test "hostile stderr carries the canary" test_hostile_stderr
 run_test "wl-copy and wl-paste round trip" test_clipboard
 run_test "paste-once clears after one paste" test_clipboard_paste_once
+run_test "guard fails on a foreign terminal launcher" test_guard_fails_on_foreign_terminal
+run_test "assert_no_leak passes when clean" test_assert_no_leak_clean
+run_test "assert_no_leak fails per source" test_assert_no_leak_sources
+run_test "pass-cli mock records stdin" test_pass_cli_records_stdin
+run_test "wl-copy accepts --sensitive" test_wl_copy_sensitive
+run_test "wl-copy rejects unknown options" test_wl_copy_unknown_option
+run_test "terminal mock modes" test_terminal_mock
+run_test "run_helper sets status and output" test_run_helper
 finish_tests

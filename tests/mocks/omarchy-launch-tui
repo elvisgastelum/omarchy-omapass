@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Mock omarchy-launch-tui: same behavior as xdg-terminal-exec, logged under this name.
+# A wrapper rather than a symlink, because omarchy-plugin-validate rejects symlinks.
+OMAPASS_MOCK_NAME=omarchy-launch-tui exec "$(dirname "${BASH_SOURCE[0]}")/xdg-terminal-exec" "$@"
