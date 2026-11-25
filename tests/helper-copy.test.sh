@@ -441,6 +441,37 @@ test_malformed_dynamic_fields() {
   do_copy "$SID" "$IID" section:0:0 --clear-after 0
   expect_fail 17 not_found
   cp "$view.orig" "$view"
+
+  # A null section is skipped; the second section still copies.
+  jq '.item.content.content.Custom.sections += [{"section_name":"Second","section_fields":[{"name":"Second Text","content":{"Text":"CANARY-SECOND-SECTION-1"}}]}] | .item.content.content.Custom.sections[0] = null' "$view.orig" >"$view"
+  do_copy "$SID" "$IID" section:1:0 --clear-after 0
+  expect_copied section:1:0 0
+  clip_get
+  assert_eq CANARY-SECOND-SECTION-1 "$CLIP"
+  do_copy "$SID" "$IID" section:0:0 --clear-after 0
+  expect_fail 17 not_found
+  cp "$view.orig" "$view"
+
+  # A section with non-list fields is skipped; the second section still copies.
+  jq '.item.content.content.Custom.sections += [{"section_name":"Second","section_fields":[{"name":"Second Text","content":{"Text":"CANARY-SECOND-SECTION-1"}}]}] | .item.content.content.Custom.sections[0].section_fields = "x"' "$view.orig" >"$view"
+  do_copy "$SID" "$IID" section:0:0 --clear-after 0
+  expect_fail 17 not_found
+  do_copy "$SID" "$IID" section:1:0 --clear-after 0
+  expect_copied section:1:0 0
+  clip_get
+  assert_eq CANARY-SECOND-SECTION-1 "$CLIP"
+  cp "$view.orig" "$view"
+
+  # A same-name TOTP extra with an empty object value does not make extra:2 ambiguous.
+  fx_ids Login
+  view="$(fx_view "$SID" "$IID")"
+  cp "$view" "$view.orig"
+  jq '.item.content.extra_fields += [{"name":"Fixture Totp Field","content":{"Totp":{}}}]' "$view.orig" >"$view"
+  do_copy "$SID" "$IID" extra:2 --clear-after 0
+  expect_copied extra:2 0
+  clip_get
+  assert_eq 564738 "$CLIP"
+  cp "$view.orig" "$view"
 }
 
 test_hmac_vector() {

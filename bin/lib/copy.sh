@@ -49,7 +49,7 @@ def dyn:
     | {name: (.name | if type == "string" then . else "" end), kind: (kinds[$e.key] // "unknown"),
        value: $e.value}
   else {name: "", kind: "unknown", value: null} end;
-def present: . != null and . != "";
+def present: . != null and . != "" and . != [] and . != {};  # same as list.sh
 # A copyable value: a string (no NUL), or a whole-number timestamp; empty or null is not found.
 def emit_value:
   if . == null or . == "" then "N"
