@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Mock pass-cli: replays fixtures from $OMAPASS_FIXTURES/pass-cli/<key>.{json,txt,stderr,exit}.
+# The key is the args joined with "__", with "/" and spaces replaced by "_".
+args="$*"
+if [[ -n "${OMAPASS_MOCK_LOG:-}" ]]; then
+  echo "pass-cli $args" >>"$OMAPASS_MOCK_LOG"
+fi
+key=""
+sep=""
+for a in "$@"; do
+  key="$key$sep$a"
+  sep="__"
+done
+key="${key//\//_}"
+key="${key// /_}"
+dir="${OMAPASS_FIXTURES:-}/pass-cli"
+out=""
+for ext in json txt; do
+  if [[ -f "$dir/$key.$ext" ]]; then
+    out="$dir/$key.$ext"
+    break
+  fi
+done
+if [[ -z "$out" ]]; then
+  echo "mock pass-cli: no fixture for: $args" >&2
+  exit 2
+fi
+cat "$out"
+if [[ -f "$dir/$key.stderr" ]]; then
+  cat "$dir/$key.stderr" >&2
+fi
+code=0
+if [[ -f "$dir/$key.exit" ]]; then
+  code="$(tr -d '[:space:]' <"$dir/$key.exit")"
+fi
+exit "$code"

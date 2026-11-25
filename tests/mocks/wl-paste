@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Mock wl-paste: reads the state written by the wl-copy mock.
+nonl=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n | --no-newline) nonl=1 ;;
+    -p | --primary) ;;
+    -t | --type) shift ;;
+    *) ;;
+  esac
+  shift
+done
+emit() {
+  printf '%s' "$1"
+  if [[ $nonl -eq 0 ]]; then
+    echo
+  fi
+}
+state="${XDG_RUNTIME_DIR:-}/omapass-mock-clipboard"
+if [[ -n "${XDG_RUNTIME_DIR:-}" && -f "$state" ]]; then
+  content="$(cat "$state"; printf x)"
+  emit "${content%x}"
+  if [[ -f "$state.once" ]]; then
+    rm -f "$state" "$state.once"
+  fi
+  exit 0
+fi
+default="${OMAPASS_FIXTURES:-}/wl-paste/default.txt"
+if [[ -f "$default" ]]; then
+  emit "$(cat "$default")"
+  exit 0
+fi
+echo "No selection" >&2
+exit 1

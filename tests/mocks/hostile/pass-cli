@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Adversarial pass-cli. Mode from OMAPASS_HOSTILE_MODE: garbage|stderr|fail|empty|huge.
+if [[ -n "${OMAPASS_MOCK_LOG:-}" ]]; then
+  echo "pass-cli $*" >>"$OMAPASS_MOCK_LOG"
+fi
+case "${OMAPASS_HOSTILE_MODE:-garbage}" in
+  garbage)
+    printf '\xff\xfe not json \033[31mred\033[0m \033]0;title\007\033[2J{"half":\n'
+    ;;
+  stderr)
+    echo '{}'
+    echo "noise: ${OMAPASS_HOSTILE_CANARY:-HOSTILE-CANARY}" >&2
+    ;;
+  fail)
+    echo "hostile pass-cli: simulated failure" >&2
+    exit 1
+    ;;
+  empty) ;;
+  huge)
+    head -c 1048576 /dev/zero | tr '\0' 'A'
+    echo
+    ;;
+  *)
+    exit 3
+    ;;
+esac
+exit 0

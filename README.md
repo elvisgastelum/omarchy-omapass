@@ -50,9 +50,12 @@ make enable     Put the widget on the bar
 make disable    Take the widget off the bar
 make test       Run the tests and check the JSON files parse
 make validate   Validate the manifest against Omarchy's plugin schema
-make check      Run test and validate
+make lint       Run shellcheck and qmllint
+make check      Run test, lint and validate
 make dev        Copy this working tree over the installed plugin
 ```
+
+Tests run offline against mocks in `tests/mocks`; `tests/lib.sh` refuses to run if the real `pass-cli`, `wl-copy` or `wl-paste` would resolve.
 
 `make dev` runs `make check`, copies the working tree over the installed plugin
 and restarts the shell. It stops when the installed checkout is dirty or is not
