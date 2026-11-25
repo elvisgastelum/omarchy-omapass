@@ -76,6 +76,21 @@ function _barEntry(barConfig, pluginId) {
     return null
 }
 
+// The `bar` object of the user's shell.json, read the way the shell reads it. Null when the file
+// holds no usable bar (the shell then uses its defaults); undefined when it is not valid JSON,
+// such as a half-written file.
+function userBar(text) {
+    var config
+    try {
+        config = JSON.parse(text)
+    } catch (e) {
+        return undefined
+    }
+    if (!config || config.version !== 1 || !config.bar || typeof config.bar !== "object" || _isList(config.bar))
+        return null
+    return config.bar
+}
+
 // Widget settings are keys of the plugin's bar layout entry; the manifest holds the defaults.
 function settings(barConfig, pluginId, defaults) {
     var d = defaults || {}

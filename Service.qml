@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import qs.Commons
 import "Cache.js" as Cache
@@ -31,6 +32,8 @@ Item {
   property bool refreshing: false
   property real updatedAt: 0
   property int maxAgeSeconds: Cache.DEFAULT_MAX_AGE_SECONDS
+  // `bar` of the user's shell.json; null until read, or when there is none.
+  property var userBar: null
 
   function toggleOverlay() {
     if (root.shell && typeof root.shell.toggle === "function")
@@ -68,7 +71,8 @@ Item {
 
   function applySettings() {
     var defaults = root.manifest && root.manifest.barWidget ? root.manifest.barWidget.defaults : null
-    var s = Cache.settings(root.shell ? root.shell.barConfig : null, root.pluginId, defaults)
+    var bar = root.userBar || (root.shell ? root.shell.barConfig : null)
+    var s = Cache.settings(bar, root.pluginId, defaults)
     root.maxAgeSeconds = s.maxAge
     return Cache.setHidden(root.cache, s.hidden)
   }
@@ -110,6 +114,29 @@ Item {
     root.refreshError = s.error || ""
     root.refreshing = s.refreshing
     root.updatedAt = s.updatedAt
+  }
+
+  // shell.barConfig reaches a third-party plugin one config change late (Omarchy 4.5), so the
+  // settings are read from the file itself.
+  FileView {
+    id: userConfig
+    path: Quickshell.env("HOME") + "/.config/omarchy/shell.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      var bar = Cache.userBar(userConfig.text())
+      // A half-written file keeps the last good settings.
+      if (bar === undefined)
+        return
+      root.userBar = bar
+      root.settingsChanged()
+    }
+    // No file: the shell runs on its defaults, which shell.barConfig holds.
+    onLoadFailed: {
+      root.userBar = null
+      root.settingsChanged()
+    }
   }
 
   Connections {

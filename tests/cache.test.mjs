@@ -15,7 +15,7 @@ const load = (file, names) => {
   return new Function(`${src}; return { ${names} }`)();
 };
 const Model = load('Model.js', 'parseList');
-const Cache = load('Cache.js', 'MAX_CALLS, DEFAULT_MAX_AGE_SECONDS, create, settings, request, take, args, clear, setHidden, finish, snapshot, info');
+const Cache = load('Cache.js', 'MAX_CALLS, DEFAULT_MAX_AGE_SECONDS, create, userBar, settings, request, take, args, clear, setHidden, finish, snapshot, info');
 const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 
 // Synthetic helper output, shaped as docs/CONTRACT.md "vaults" and "list".
@@ -372,6 +372,20 @@ for (const reason of ['create', 'trash', 'untrash', 'manual']) {
   assert.equal(info.calls, 0);
   assert.equal(info.ageSeconds, null);
   assert.equal(Cache.info(loaded(['shareAAA']), T0 + 5000).ageSeconds, 5);
+}
+
+// userBar: the user's shell.json, read like the shell reads it.
+{
+  const bar = { layout: { right: [{ id: 'p', hiddenVaults: ['S1'], refreshMaxAgeSeconds: 10 }] } };
+  const parsed = Cache.userBar(JSON.stringify({ version: 1, bar }));
+  assert.deepEqual(parsed, bar);
+  assert.deepEqual(Cache.settings(parsed, 'p', null), { hidden: ['S1'], maxAge: 10 });
+  // Half-written or empty: keep the previous settings.
+  assert.equal(Cache.userBar(''), undefined);
+  assert.equal(Cache.userBar('{"version":1,"bar":'), undefined);
+  // Not usable by the shell either: fall back to shell.barConfig.
+  for (const text of ['null', '[]', '{}', '{"bar":{}}', '{"version":2,"bar":{}}', '{"version":1}', '{"version":1,"bar":[]}'])
+    assert.equal(Cache.userBar(text), null, text);
 }
 
 console.log('cache tests passed');
