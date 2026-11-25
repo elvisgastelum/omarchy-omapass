@@ -1,0 +1,53 @@
+{
+  "folders": [],
+  "items": [
+    {
+      "id": "FIXTURE-ITEM-A1==",
+      "share_id": "FIXTURE-SHARE-A==",
+      "vault_id": "FIXTURE-VAULT-A==",
+      "state": "Active",
+      "flags": [],
+      "create_time": "2026-01-01T10:00:00Z",
+      "modify_time": "2026-02-01T10:00:00Z",
+      "last_use_time": "2026-03-01T10:00:00Z",
+      "item_type": "Login",
+      "title": "Fixture Login With TOTP"
+    },
+    {
+      "id": "FIXTURE-ITEM-A2==",
+      "share_id": "FIXTURE-SHARE-A==",
+      "vault_id": "FIXTURE-VAULT-A==",
+      "state": "Active",
+      "flags": [],
+      "create_time": "2026-01-02T10:00:00Z",
+      "modify_time": "2026-02-02T10:00:00Z",
+      "last_use_time": null,
+      "item_type": "Login",
+      "title": "Fixture Login Plain"
+    },
+    {
+      "id": "FIXTURE-ITEM-A3==",
+      "share_id": "FIXTURE-SHARE-A==",
+      "vault_id": "FIXTURE-VAULT-A==",
+      "state": "Active",
+      "flags": [],
+      "create_time": "2026-01-03T10:00:00Z",
+      "modify_time": "2026-02-03T10:00:00Z",
+      "last_use_time": "2026-03-03T10:00:00Z",
+      "item_type": "Alias",
+      "title": "Fixture Alias"
+    },
+    {
+      "id": "FIXTURE-ITEM-A4==",
+      "share_id": "FIXTURE-SHARE-A==",
+      "vault_id": "FIXTURE-VAULT-A==",
+      "state": "Active",
+      "flags": [],
+      "create_time": "2026-01-04T10:00:00Z",
+      "modify_time": "2026-02-04T10:00:00Z",
+      "last_use_time": "2026-03-04T11:00:00Z",
+      "item_type": "Note",
+      "title": "Fixture Note"
+    }
+  ]
+}

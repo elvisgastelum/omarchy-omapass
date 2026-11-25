@@ -77,9 +77,9 @@ test_network() {
 
 test_pass_cli_mock() {
   local out
-  out="$(pass-cli vault list)"
-  echo "$out" | jq -e '.vaults[0].name == "Mock"' >/dev/null
-  assert_contains "$(cat "$OMAPASS_MOCK_LOG")" "pass-cli vault list"
+  out="$(pass-cli vault list --output json)"
+  echo "$out" | jq -e '.vaults[0].name == "Fixture Personal"' >/dev/null
+  assert_contains "$(cat "$OMAPASS_MOCK_LOG")" "pass-cli vault list --output json"
   assert_status 4 pass-cli fails
   local err
   err="$(pass-cli fails 2>&1 >/dev/null || true)"

@@ -1,0 +1,32 @@
+{
+  "title": "",
+  "note": "",
+  "sections": [
+    {
+      "section_name": "Section 1",
+      "fields": [
+        {
+          "field_name": "Text Field",
+          "field_type": "text",
+          "value": ""
+        },
+        {
+          "field_name": "Hidden Field",
+          "field_type": "hidden",
+          "value": ""
+        },
+        {
+          "field_name": "TOTP Field",
+          "field_type": "totp",
+          "value": "otpauth://..."
+        },
+        {
+          "field_name": "Timestamp Field",
+          "field_type": "timestamp",
+          "value": "1730000000"
+        }
+      ]
+    }
+  ],
+  "extra_fields": []
+}

@@ -1,0 +1,264 @@
+{
+  "ok": true,
+  "notice": null,
+  "vaults": [
+    {
+      "share_id": "FIXTURE-SHARE-A==",
+      "vault_id": "FIXTURE-VAULT-A==",
+      "name": "Fixture Personal",
+      "ok": true,
+      "count": 4
+    },
+    {
+      "share_id": "FIXTURE-SHARE-B==",
+      "vault_id": "FIXTURE-VAULT-B==",
+      "name": "Fixture Work",
+      "ok": true,
+      "count": 5
+    }
+  ],
+  "items": [
+    {
+      "share_id": "FIXTURE-SHARE-A==",
+      "id": "FIXTURE-ITEM-A1==",
+      "vault_id": "FIXTURE-VAULT-A==",
+      "vault": "Fixture Personal",
+      "type": "login",
+      "title": "Fixture Login With TOTP",
+      "username": "fixture.user",
+      "email": "fixture.user@example.invalid",
+      "urls": [
+        "https://login.fixture.example.invalid",
+        "https://app.fixture.example.invalid/signin"
+      ],
+      "create_time": "2026-01-01T10:00:00Z",
+      "modify_time": "2026-02-01T10:00:00Z",
+      "last_use_time": "2026-03-01T10:00:00Z",
+      "has_totp": true,
+      "secret_fields": [
+        "username",
+        "email",
+        "password",
+        "totp",
+        "extra:0",
+        "extra:1",
+        "extra:2",
+        "extra:3"
+      ],
+      "fields": [
+        {
+          "field": "extra:0",
+          "name": "Fixture Text Field",
+          "kind": "text"
+        },
+        {
+          "field": "extra:1",
+          "name": "Fixture Hidden Field",
+          "kind": "hidden"
+        },
+        {
+          "field": "extra:2",
+          "name": "Fixture Totp Field",
+          "kind": "totp"
+        },
+        {
+          "field": "extra:3",
+          "name": "Fixture Timestamp Field",
+          "kind": "timestamp"
+        }
+      ]
+    },
+    {
+      "share_id": "FIXTURE-SHARE-A==",
+      "id": "FIXTURE-ITEM-A2==",
+      "vault_id": "FIXTURE-VAULT-A==",
+      "vault": "Fixture Personal",
+      "type": "login",
+      "title": "Fixture Login Plain",
+      "username": null,
+      "email": "fixture.plain@example.invalid",
+      "urls": [],
+      "create_time": "2026-01-02T10:00:00Z",
+      "modify_time": "2026-02-02T10:00:00Z",
+      "last_use_time": null,
+      "has_totp": false,
+      "secret_fields": [
+        "email",
+        "password"
+      ],
+      "fields": []
+    },
+    {
+      "share_id": "FIXTURE-SHARE-A==",
+      "id": "FIXTURE-ITEM-A3==",
+      "vault_id": "FIXTURE-VAULT-A==",
+      "vault": "Fixture Personal",
+      "type": "alias",
+      "title": "Fixture Alias",
+      "username": null,
+      "email": "fixture.alias@example.invalid",
+      "urls": [],
+      "create_time": "2026-01-03T10:00:00Z",
+      "modify_time": "2026-02-03T10:00:00Z",
+      "last_use_time": "2026-03-03T10:00:00Z",
+      "has_totp": false,
+      "secret_fields": [
+        "alias"
+      ],
+      "fields": []
+    },
+    {
+      "share_id": "FIXTURE-SHARE-A==",
+      "id": "FIXTURE-ITEM-A4==",
+      "vault_id": "FIXTURE-VAULT-A==",
+      "vault": "Fixture Personal",
+      "type": "note",
+      "title": "Fixture Note",
+      "username": null,
+      "email": null,
+      "urls": [],
+      "create_time": "2026-01-04T10:00:00Z",
+      "modify_time": "2026-02-04T10:00:00Z",
+      "last_use_time": "2026-03-04T11:00:00Z",
+      "has_totp": false,
+      "secret_fields": [
+        "note"
+      ],
+      "fields": []
+    },
+    {
+      "share_id": "FIXTURE-SHARE-B==",
+      "id": "FIXTURE-ITEM-B1==",
+      "vault_id": "FIXTURE-VAULT-B==",
+      "vault": "Fixture Work",
+      "type": "credit-card",
+      "title": "Fixture Credit Card",
+      "username": null,
+      "email": null,
+      "urls": [],
+      "create_time": "2026-01-01T10:00:00Z",
+      "modify_time": "2026-02-01T10:00:00Z",
+      "last_use_time": "2026-03-01T10:00:00Z",
+      "has_totp": false,
+      "secret_fields": [
+        "holder",
+        "number",
+        "cvv",
+        "expiry"
+      ],
+      "fields": []
+    },
+    {
+      "share_id": "FIXTURE-SHARE-B==",
+      "id": "FIXTURE-ITEM-B2==",
+      "vault_id": "FIXTURE-VAULT-B==",
+      "vault": "Fixture Work",
+      "type": "identity",
+      "title": "Fixture Identity",
+      "username": null,
+      "email": null,
+      "urls": [],
+      "create_time": "2026-01-02T10:00:00Z",
+      "modify_time": "2026-02-02T10:00:00Z",
+      "last_use_time": "2026-03-02T11:00:00Z",
+      "has_totp": false,
+      "secret_fields": [
+        "name",
+        "email",
+        "phone",
+        "address"
+      ],
+      "fields": []
+    },
+    {
+      "share_id": "FIXTURE-SHARE-B==",
+      "id": "FIXTURE-ITEM-B3==",
+      "vault_id": "FIXTURE-VAULT-B==",
+      "vault": "Fixture Work",
+      "type": "ssh-key",
+      "title": "Fixture SSH Key",
+      "username": null,
+      "email": null,
+      "urls": [],
+      "create_time": "2026-01-03T10:00:00Z",
+      "modify_time": "2026-02-03T10:00:00Z",
+      "last_use_time": "2026-03-03T10:00:00Z",
+      "has_totp": false,
+      "secret_fields": [
+        "private_key",
+        "public_key",
+        "section:0:0"
+      ],
+      "fields": [
+        {
+          "field": "section:0:0",
+          "name": "Fixture SSH Hidden Field",
+          "kind": "hidden"
+        }
+      ]
+    },
+    {
+      "share_id": "FIXTURE-SHARE-B==",
+      "id": "FIXTURE-ITEM-B4==",
+      "vault_id": "FIXTURE-VAULT-B==",
+      "vault": "Fixture Work",
+      "type": "wifi",
+      "title": "Fixture Wifi",
+      "username": null,
+      "email": null,
+      "urls": [],
+      "create_time": "2026-01-04T10:00:00Z",
+      "modify_time": "2026-02-04T10:00:00Z",
+      "last_use_time": "2026-03-04T11:00:00Z",
+      "has_totp": false,
+      "secret_fields": [
+        "ssid",
+        "password"
+      ],
+      "fields": []
+    },
+    {
+      "share_id": "FIXTURE-SHARE-B==",
+      "id": "FIXTURE-ITEM-B5==",
+      "vault_id": "FIXTURE-VAULT-B==",
+      "vault": "Fixture Work",
+      "type": "custom",
+      "title": "Fixture Custom",
+      "username": null,
+      "email": null,
+      "urls": [],
+      "create_time": "2026-01-05T10:00:00Z",
+      "modify_time": "2026-02-05T10:00:00Z",
+      "last_use_time": "2026-03-05T10:00:00Z",
+      "has_totp": true,
+      "secret_fields": [
+        "section:0:0",
+        "section:0:1",
+        "section:0:2",
+        "section:0:3"
+      ],
+      "fields": [
+        {
+          "field": "section:0:0",
+          "name": "Fixture Section Text",
+          "kind": "text"
+        },
+        {
+          "field": "section:0:1",
+          "name": "Fixture Section Hidden",
+          "kind": "hidden"
+        },
+        {
+          "field": "section:0:2",
+          "name": "Fixture Section Totp",
+          "kind": "totp"
+        },
+        {
+          "field": "section:0:3",
+          "name": "Fixture Section Timestamp",
+          "kind": "timestamp"
+        }
+      ]
+    }
+  ]
+}

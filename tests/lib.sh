@@ -142,6 +142,31 @@ use_hostile_pass_cli() {
   omapass_guard
 }
 
+# use_fixture_scenario <name>: sandbox copy of the pass-cli fixtures with tests/fixtures/scenarios/<name>/pass-cli laid over it.
+use_fixture_scenario() {
+  local name="$1" dst over f base
+  [[ "$name" =~ ^[A-Za-z0-9_-]+$ ]] || _omapass_fail "bad scenario name: $name" || return 1
+  dst="$OMAPASS_SANDBOX/fixtures/pass-cli"
+  over="$TESTS_DIR/fixtures/scenarios/$name/pass-cli"
+  rm -rf "$OMAPASS_SANDBOX/fixtures"
+  mkdir -p "$dst"
+  cp -R "$TESTS_DIR/fixtures/pass-cli/." "$dst/"
+  if [[ -d "$over" ]]; then
+    for f in "$over"/*; do
+      [[ -e "$f" ]] || continue
+      base="${f##*/}"
+      # The mock prefers .json over .txt, so an override of one drops the other.
+      case "$base" in
+        *.txt) rm -f "$dst/${base%.txt}.json" ;;
+        *.json) rm -f "$dst/${base%.json}.txt" ;;
+      esac
+      cp "$f" "$dst/$base"
+    done
+  fi
+  OMAPASS_FIXTURES="$OMAPASS_SANDBOX/fixtures"
+  export OMAPASS_FIXTURES
+}
+
 finish_tests() {
   echo "$OMAPASS_PASSED passed, $OMAPASS_FAILED failed"
   if [[ $OMAPASS_FAILED -gt 0 || $((OMAPASS_PASSED + OMAPASS_FAILED)) -eq 0 ]]; then
