@@ -203,8 +203,8 @@ same change, and confirms the real no-lock error text before matching it.
 |------------|------|-------|-------|--------|
 | `status` | none | none | OPA-10 | implemented |
 | `version` | none | none | OPA-10 | implemented |
-| `vaults` | none | none | OPA-13 | planned |
-| `list` | `[--share-id <S>]...` | none | OPA-13 | planned |
+| `vaults` | none | none | OPA-13 | implemented |
+| `list` | `[--share-id <S>]...` | none | OPA-13 | implemented |
 | `copy` | `<share_id> <item_id> <field> [--paste-once] [--clear-after <0-300>]` | none | OPA-14 | planned |
 | `clipboard-clear` | internal: run detached by `copy` | none | OPA-14 | planned |
 | `trash`, `untrash` | `<share_id> <item_id>` | none | OPA-16 | planned |
@@ -243,6 +243,10 @@ Errors: everything `version` returns, plus `signed_out`, `locked`,
 {"ok":true,"vaults":[{"share_id":"...","vault_id":"...","name":"..."}]}
 ```
 
+Runs `version`, then `vault list --output json`; only `share_id`, `vault_id`
+and `name` are kept. Errors: everything `status` returns; a `vault list` that
+is not `{"vaults":[object...]}` is `failed` + `bad_output`.
+
 ### `list`
 
 Lists every vault (or the given `--share-id`s), one `item list` call per vault
@@ -268,7 +272,18 @@ envelope fail with the first vault's error.
 `notice` is `null` or `"agent_session"`. On an agent session `--show-secrets`
 is refused, so the helper falls back to the title-only call and every item is
 title-only: `username`, `email` `null`, `urls` `[]`, `has_totp` `false`,
-`secret_fields` and `fields` `[]`. The title-only output has a top-level
+`secret_fields` and `fields` `[]`. When any vault's `--show-secrets` call is refused as
+`agent_session`, every vault is listed again with the title-only call, so the
+output is never a mix.
+
+Other decisions (OPA-13): repeated `--share-id`s are de-duplicated and listed
+in the given order; a malformed id or a missing value is `failed` + `usage`; a
+requested `share_id` that `vault list` does not return is reported as
+`{"share_id":"S","vault_id":null,"name":null,"ok":false,"error":"not_found"}`
+without calling `item list`. A vault whose `item list` output is not
+`{"items":[...]}` gets `error: "failed"`. Items whose content variant (or
+title-only `item_type`) is not in the type table are skipped, never guessed.
+No vaults at all is a success with empty `vaults` and `items`. The title-only output has a top-level
 `item_type` and `title` (verified keys); the `item_type` values are
 unverified (fixtures use the variant names, such as `Login`).
 
