@@ -74,7 +74,8 @@ callers branch on `error`. Callers map any `error` they do not know to `failed`.
 
 Reason tokens: `usage`, `unknown_subcommand`, `missing_pass_cli`,
 `bad_version`, `bad_output`, `bad_input`, `bad_lib` (a `bin/lib` file was
-refused). Planned: `no_lock` (OPA-16, see [Session lock](#session-lock)).
+refused), `no_lock` (`lock` on a session without a lock code, see
+[Session lock](#session-lock)).
 
 ## Classifying `pass-cli` failures
 
@@ -180,8 +181,14 @@ the help text's own placeholders.
 ### Session lock
 
 `pass-cli session lock` "requires an existing lock" (verified, `--help`): a
-lock code must first be set with `pass-cli session create-lock`. What
-`session lock` prints and exits with when no lock exists is unverified.
+lock code must first be set with `pass-cli session create-lock`. The
+no-lock text is from the pass-cli source (`main`, `src/commands/session/lock.rs`,
+returned through `bail!`, so `Error: ` on stderr and exit 1, inferred from
+anyhow): ``Session has no lock. Create one first with `pass-cli session
+create-lock` ``. The helper matches `session has no lock` (lowercased stderr)
+only on a non-zero exit. Not seen in real output. On an already-locked session
+pass-cli prints `Session is already locked` and exits 0 (source), so `lock`
+returns the `locked` state.
 
 Decision for `lock` (OPA-16): the helper clears its clipboard state first,
 then runs `pass-cli session lock`. When that fails because the session has no
@@ -191,11 +198,8 @@ running `pass-cli session create-lock`. Every other failure goes through the
 error classifier as usual. The helper never logs out instead: that would
 force a full sign-in for a user who only asked to lock.
 
-`no_lock` is a planned reason token. It is not yet in the JSON block below,
-because `tests/model.test.mjs` requires `Model.REASONS` to equal its
-`reasons` list. OPA-16 adds `no_lock` to the JSON block, to the reason
-allowlist in `omapass_fail` (`bin/lib/core.sh`) and to `Model.REASONS` in the
-same change, and confirms the real no-lock error text before matching it.
+`no_lock` is in the JSON block, the reason allowlist in `omapass_fail`
+(`bin/lib/core.sh`) and `Model.REASONS`; `tests/model.test.mjs` keeps them equal.
 
 ## Subcommands
 
@@ -207,10 +211,10 @@ same change, and confirms the real no-lock error text before matching it.
 | `list` | `[--share-id <S>]...` | none | OPA-13 | implemented |
 | `copy` | `<share_id> <item_id> <field> [--paste-once] [--clear-after <0-300>]` | none | OPA-14 | implemented |
 | `clipboard-clear` | internal: `<token>`, run detached by `copy` | none | OPA-14 | implemented |
-| `trash`, `untrash` | `<share_id> <item_id>` | none | OPA-16 | planned |
-| `lock` | none | none | OPA-16 | planned |
-| `logout` | none | none | OPA-16 | planned |
-| `login`, `unlock` | none: open a terminal running `pass-cli login` / `pass-cli session unlock` | none | OPA-16 | planned |
+| `trash`, `untrash` | `<share_id> <item_id>` | none | OPA-16 | implemented |
+| `lock` | none | none | OPA-16 | implemented |
+| `logout` | none | none | OPA-16 | implemented |
+| `login`, `unlock` | none: open a terminal running `pass-cli login` / `pass-cli session unlock` | none | OPA-16 | implemented |
 | `create` | `<type> --share-id <S>` | form JSON | OPA-18, OPA-23 | implemented (login, note, custom, credit-card, wifi, identity, alias, ssh-key) |
 | `recents` | `add <share_id> <item_id>`, `list`, `clear` | none | OPA-20 | implemented |
 
@@ -392,11 +396,38 @@ through the classifier.
 {"ok":true,"state":"signed_out"}
 ```
 
-`lock` also clears the clipboard; with no session lock it will fail with
-`failed` + `no_lock` (a planned reason, added by OPA-16; see
-[Session lock](#session-lock)). `login` and `unlock`
-open a terminal; the password or lock code is entered there (or in the browser
-`pass-cli login` opens; unverified) and never reaches the helper.
+Shapes: `trash` and `untrash` return `{"ok":true}`; `lock` returns
+`{"ok":true,"state":"locked"}`; `logout` returns `{"ok":true,"state":"signed_out"}`;
+`login` and `unlock` return `{"ok":true}` once the terminal is spawned. The
+helper does not wait for or learn the sign-in result; the UI re-runs `status`.
+
+`lock` also clears the clipboard. With no session lock it fails with
+`failed` + `no_lock` (see [Session lock](#session-lock)). `logout` also clears
+the clipboard (same `omapass_clipboard_clear_now`), because the copied secret
+belongs to the session being ended. A `logout` whose failure classifies as
+`signed_out` (already signed out) returns `{"ok":true,"state":"signed_out"}`.
+
+`login` and `unlock` open a terminal; the password or lock code is entered there
+(or in the browser `pass-cli login` opens; unverified) and never reaches the helper.
+The terminal is started as follows:
+
+- launched with `setsid -f xdg-terminal-exec --app-id=org.omarchy.omapass -e pass-cli login`
+  (or `session unlock`); `xdg-terminal-exec` is the launcher Omarchy's scripts use;
+- in a new session (`setsid`), so it outlives the helper and its timeout. It is
+  not moved to its own systemd scope (no `uwsm-app`), so stopping the caller's
+  service may still end it;
+- stdin, stdout and stderr on `/dev/null`, and every other fd closed, so nothing
+  reaches the helper's stdout and no helper or caller fd stays open;
+- working directory `$HOME`;
+- the helper's internal `OMAPASS_*` state variables and its `LC_ALL=C` are unset
+  first (the helper holds no secret at that point: neither subcommand reads an item);
+- the terminal closes when `pass-cli` exits, so an error it prints may not stay
+  on screen.
+
+A missing `xdg-terminal-exec` or `setsid` fails with `failed`.
+
+Errors: bad args → `failed` + `usage` (all six); for `trash`, `untrash`, `lock`
+and `logout`, `pass-cli` failures go through the classifier.
 
 ### `create`
 
@@ -553,7 +584,7 @@ Core API (`bin/lib/core.sh`), for later libs:
     "not_found": 17
   },
   "errors": ["signed_out", "locked", "too_old", "plan_required", "agent_session", "network", "timeout", "not_found", "failed"],
-  "reasons": ["usage", "unknown_subcommand", "missing_pass_cli", "bad_version", "bad_output", "bad_input", "bad_lib"],
+  "reasons": ["usage", "unknown_subcommand", "missing_pass_cli", "bad_version", "bad_output", "bad_input", "bad_lib", "no_lock"],
   "subcommands": {
     "status": "OPA-10",
     "version": "OPA-10",
