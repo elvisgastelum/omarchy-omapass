@@ -35,7 +35,7 @@ QML_FILES := $(shell find . -name '*.qml' -not -path './.git/*' -not -path './.p
 
 # Only syntax categories: Omarchy's qs.* imports are not resolvable by plain qmllint.
 lint: ## Run shellcheck (required) and qmllint (if installed)
-	@command -v shellcheck >/dev/null 2>&1 || { echo "error: shellcheck is required (sudo pacman -S shellcheck)"; exit 1; }
+	@command -v shellcheck >/dev/null 2>&1 || { echo "error: shellcheck is required (pacman -S shellcheck, or mise use -g shellcheck where pacman has none)"; exit 1; }
 	shellcheck -x -P SCRIPTDIR $(SHELL_FILES)
 	@if [ -z "$(QMLLINT)" ]; then echo "notice: qmllint not found; skipping QML lint"; \
 	elif [ -z "$(QML_FILES)" ]; then echo "notice: no QML files; skipping QML lint"; \

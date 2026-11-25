@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2329 # test_* functions are invoked indirectly by name by the test runner
 # Self-test for tests/lib.sh: guard, sandbox, isolation and the mocks.
 set -euo pipefail
 # shellcheck source=lib.sh
