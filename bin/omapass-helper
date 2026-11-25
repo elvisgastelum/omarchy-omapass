@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Omapass helper: the only process that talks to pass-cli. Contract: docs/CONTRACT.md.
+# Subcommands live in bin/lib/*.sh as omapass_cmd_<name>; this file never needs editing to add one.
+set -euo pipefail
+set +x
+umask 077
+export LC_ALL=C
+# The helper never writes stderr (contract rule 3): this also silences bash job
+# notices such as "Killed" when timeout has to SIGKILL pass-cli.
+exec 2>/dev/null
+
+self="$(readlink -f "${BASH_SOURCE[0]}")"
+bin_dir="$(dirname "$self")"
+
+bad_lib() {
+  trap - EXIT
+  printf '%s\n' '{"ok":false,"error":"failed","reason":"bad_lib"}'
+  exit 1
+}
+
+# Until the dispatcher's own EXIT trap is set below, any exit (a lib calling exit
+# at top level included) still prints one envelope.
+trap bad_lib EXIT
+uid="$(id -u)"
+# The code we source must not be replaceable by another user.
+for dir in "$bin_dir" "$bin_dir/lib"; do
+  dir_stat="$(stat -c '%u %a' -- "$dir" 2>/dev/null)" || bad_lib
+  if [[ -L "$dir" || "${dir_stat%% *}" != "$uid" ]] || ((8#${dir_stat##* } & 8#022)); then
+    bad_lib
+  fi
+done
+shopt -s nullglob
+for lib in "$bin_dir"/lib/*.sh; do
+  if [[ -L "$lib" || ! -f "$lib" ]]; then
+    bad_lib
+  fi
+  lib_stat="$(stat -c '%u %a' -- "$lib" 2>/dev/null)" || bad_lib
+  lib_owner="${lib_stat%% *}"
+  lib_mode="${lib_stat##* }"
+  if [[ "$lib_owner" != "$uid" ]] || ((8#$lib_mode & 8#022)); then
+    bad_lib
+  fi
+  bash -n -- "$lib" || bad_lib
+  # shellcheck source=/dev/null
+  source "$lib" || bad_lib
+done
+shopt -u nullglob
+
+if ! declare -F omapass_ok omapass_fail omapass_debug omapass_now_ms omapass_on_exit omapass_tmpdir >/dev/null 2>&1; then
+  bad_lib
+fi
+
+# shellcheck disable=SC2034 # read by omapass_on_exit in bin/lib/core.sh
+OMAPASS_MAIN_PID="$BASHPID"
+trap omapass_on_exit EXIT
+trap 'exit 143' TERM HUP
+trap 'exit 130' INT
+
+# shellcheck disable=SC2034 # read by bin/lib/core.sh
+OMAPASS_START_MS="$(omapass_now_ms)"
+
+if (($# == 0)); then
+  omapass_fail failed usage
+fi
+
+sub="$1"
+shift
+if [[ ! "$sub" =~ ^[a-z][a-z0-9-]*$ ]] || ! declare -F "omapass_cmd_${sub//-/_}" >/dev/null 2>&1; then
+  omapass_fail failed unknown_subcommand
+fi
+
+# shellcheck disable=SC2034 # read by bin/lib/core.sh
+OMAPASS_SUB="$sub"
+omapass_debug start
+omapass_tmpdir
+# Called outside any || or if, so set -e stays active inside the subcommand.
+"omapass_cmd_${sub//-/_}" "$@"
+# A subcommand must end with omapass_ok or omapass_fail; returning is a contract bug.
+omapass_fail failed

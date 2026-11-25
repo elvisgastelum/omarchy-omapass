@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mock pass-cli: replays fixtures from $OMAPASS_FIXTURES/pass-cli/<key>.{json,txt,stderr,exit}.
+# Mock pass-cli: replays fixtures from $OMAPASS_FIXTURES/pass-cli/<key>.{json,txt,stderr,exit,delay,ignore-term}.
 # The key is the args joined with "__", with "/" and spaces replaced by "_".
 args="$*"
 if [[ -n "${OMAPASS_MOCK_LOG:-}" ]]; then
@@ -24,6 +24,15 @@ done
 if [[ -z "$out" ]]; then
   echo "mock pass-cli: no fixture for: $args" >&2
   exit 2
+fi
+if [[ -f "$dir/$key.ignore-term" ]]; then
+  # Ignore SIGTERM, so the sleep below survives timeout and only timeout -k (SIGKILL) ends it.
+  trap '' TERM
+fi
+if [[ -f "$dir/$key.delay" ]]; then
+  d="$(tr -d '[:space:]' <"$dir/$key.delay")"
+  # shellcheck disable=SC2217 # detach stdio so a killed mock leaves no orphan on the pipe
+  sleep "$d" </dev/null >/dev/null 2>&1
 fi
 cat "$out"
 if [[ -f "$dir/$key.stderr" ]]; then

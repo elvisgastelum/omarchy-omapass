@@ -1,0 +1,3 @@
+Session is locked. Please unlock your session and try again.
+Error: Could not perform operation. Reason: SessionLocked
+detail: CANARY-STDERR-locked

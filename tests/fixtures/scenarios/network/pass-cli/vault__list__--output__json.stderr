@@ -1,0 +1,7 @@
+Error: Error sending request
+
+Caused by:
+    0: error sending request for url (https://pass-api.example.invalid/)
+    1: client error (Connect)
+    2: dns error: failed to lookup address information
+detail: CANARY-STDERR-network

@@ -1,0 +1,11 @@
+{
+  "title": "",
+  "cardholder_name": null,
+  "card_type": null,
+  "number": null,
+  "cvv": null,
+  "expiration_date": null,
+  "pin": null,
+  "note": null,
+  "extra_fields": []
+}

@@ -1,0 +1,2 @@
+Error: --show-secrets is not allowed with an agent session
+detail: CANARY-STDERR-agent_session
