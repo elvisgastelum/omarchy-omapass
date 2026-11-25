@@ -212,7 +212,7 @@ same change, and confirms the real no-lock error text before matching it.
 | `logout` | none | none | OPA-16 | planned |
 | `login`, `unlock` | none: open a terminal running `pass-cli login` / `pass-cli session unlock` | none | OPA-16 | planned |
 | `create` | `<type> --share-id <S>` | form JSON | OPA-18, OPA-23 | planned |
-| `recents` | `add <share_id> <item_id>`, `list`, `clear` | none | OPA-20 | planned |
+| `recents` | `add <share_id> <item_id>`, `list`, `clear` | none | OPA-20 | implemented |
 
 ### `version`
 
@@ -384,6 +384,23 @@ Stores `share_id`, `id` and timestamps only, at most 8, in
 ```json
 {"ok":true,"recents":[{"share_id":"...","id":"...","time":"2026-01-01T00:00:00Z"}]}
 ```
+
+Newest first; `add` of an entry already stored moves it to the front with a
+new `time`, and past 8 the oldest is dropped. `add` and `clear` take an
+exclusive `flock` on `recents.lock` in the same directory and replace the file
+atomically (temp file, `0600`, `mv`). `list` keeps only well-formed entries
+(valid ids, UTC `time`); a missing or invalid file reads as empty. Every
+action prints the resulting `recents` (`[]` after `clear`).
+
+The `showRecents` setting reaches the helper as `OMAPASS_SHOW_RECENTS`: `0`
+or `false` turns it off, anything else (or unset) is on. Off, `add` writes
+nothing (not even the directory) and `list` returns `[]`; `clear` still
+removes the file. Never calls `pass-cli`.
+
+Errors: `failed` + `usage` (unknown action, wrong argument count), `failed` +
+`bad_input` (an id that fails `omapass_valid_id`), `failed` (the directory is
+a symlink or not ours, `recents.lock` is a symlink or not a regular file, the
+lock times out after 5 s, or the write fails).
 
 ## Debug log
 
