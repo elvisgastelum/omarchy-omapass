@@ -402,6 +402,47 @@ test_unknown_kind() {
   cp "$view.orig" "$view"
 }
 
+test_malformed_dynamic_fields() {
+  local view before mut
+  use_fixture_scenario ok
+  fx_ids Login
+  view="$(fx_view "$SID" "$IID")"
+
+  cp "$view" "$view.orig"
+  for mut in '.item.content.extra_fields[1] = null' '.item.content.extra_fields[1] = {"name":"x","content":{}}'; do
+    jq "$mut" "$view.orig" >"$view"
+    do_copy "$SID" "$IID" password --clear-after 0
+    expect_copied password 0
+    clip_get
+    assert_eq CANARY-LOGIN-PASSWORD-1 "$CLIP"
+
+    before="$(grep -c '^wl-copy' "$OMAPASS_MOCK_LOG" || true)"
+    do_copy "$SID" "$IID" extra:1 --clear-after 0
+    expect_fail 1 failed bad_output
+    assert_eq "$before" "$(grep -c '^wl-copy' "$OMAPASS_MOCK_LOG" || true)" "wl-copy calls after extra:1"
+  done
+  cp "$view.orig" "$view"
+
+  jq '.item.content.extra_fields[1].name = null' "$view.orig" >"$view"
+  do_copy "$SID" "$IID" password --clear-after 0
+  expect_copied password 0
+  clip_get
+  assert_eq CANARY-LOGIN-PASSWORD-1 "$CLIP"
+  do_copy "$SID" "$IID" extra:1 --clear-after 0
+  expect_copied extra:1 0
+  clip_get
+  assert_eq CANARY-EXTRA-HIDDEN-1 "$CLIP"
+  cp "$view.orig" "$view"
+
+  fx_ids Custom
+  view="$(fx_view "$SID" "$IID")"
+  cp "$view" "$view.orig"
+  jq '.item.content.content.Custom.sections = "x"' "$view.orig" >"$view"
+  do_copy "$SID" "$IID" section:0:0 --clear-after 0
+  expect_fail 17 not_found
+  cp "$view.orig" "$view"
+}
+
 test_hmac_vector() {
   local got
   got="$(
@@ -486,6 +527,7 @@ run_test "paste-once" test_paste_once
 run_test "errors never reach wl-copy" test_errors
 run_test "multiple JSON documents are refused" test_multi_json
 run_test "unknown dynamic kind fails only that field" test_unknown_kind
+run_test "malformed dynamic fields fail only themselves" test_malformed_dynamic_fields
 run_test "HMAC test vector" test_hmac_vector
 run_test "omapass_clipboard_clear_now" test_clear_now
 run_test "key regeneration" test_key_regeneration

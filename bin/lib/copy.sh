@@ -38,15 +38,17 @@ def table: {
   "custom": {}
 };
 def obj: if type == "object" then . else error("shape") end;
-def arr: if . == null then [] elif type == "array" then . else error("shape") end;
-# One dynamic field {"name": s, "content": {"<Kind>": v}} -> {name, kind, value}. An unknown kind
-# only fails when that field itself is copied (list skips it, other fields still copy).
+# Dynamic-field containers are read as tolerantly as list.sh reads them (same indexes), so
+# every field list advertises stays copyable even when a neighbour is malformed.
+def arr: if type == "array" then . else [] end;
+# One dynamic field {"name": s, "content": {"<Kind>": v}} -> {name, kind, value}. A malformed
+# entry or an unknown kind becomes kind "unknown", which fails only when that field is copied.
 def dyn:
-  obj
-  | if (.name | type) == "string" and (.content | type) == "object" and (.content | length) == 1
-    then (.content | to_entries[0]) as $e
-      | {name: .name, kind: (kinds[$e.key] // "unknown"), value: $e.value}
-    else error("field") end;
+  if type == "object" and (.content | type) == "object" and (.content | length) == 1
+  then (.content | to_entries[0]) as $e
+    | {name: (.name | if type == "string" then . else "" end), kind: (kinds[$e.key] // "unknown"),
+       value: $e.value}
+  else {name: "", kind: "unknown", value: null} end;
 def present: . != null and . != "";
 # A copyable value: a string (no NUL), or a whole-number timestamp; empty or null is not found.
 def emit_value:
@@ -62,8 +64,9 @@ def idx($s): if $s | test("^(0|[1-9][0-9]{0,3})$") then $s | tonumber else null 
 | ($c.content | obj | if length == 1 then keys[0] else error("variant") end) as $variant
 | (variants[$variant] // error("variant")) as $type
 | ($c.extra_fields | arr | map(dyn)) as $extras
-| (if sectioned | index($variant) then $c.content[$variant] | obj | .sections | arr
-   | map(obj | .section_fields | arr | map(dyn)) else [] end) as $sections
+| (if sectioned | index($variant) then $c.content[$variant]
+   | (if type == "object" then .sections else null end) | arr
+   | map(if type == "object" then .section_fields | arr | map(dyn) else [] end) else [] end) as $sections
 # Every name `item totp` would list: the login TOTP as "totp", then TOTP fields by name.
 | ([if $type == "login" and ($c.content.Login.totp_uri | present) then "totp" else empty end]
    + [($extras + ($sections | add // []))[] | select(.kind == "totp" and (.value | present)) | .name])
