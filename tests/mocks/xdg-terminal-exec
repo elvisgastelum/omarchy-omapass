@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Mock xdg-terminal-exec and omarchy-launch-tui (the latter is a thin wrapper that sets OMAPASS_MOCK_NAME).
+# Omarchy launches the default terminal with xdg-terminal-exec; omarchy-launch-tui is
+# `setsid uwsm-app -- xdg-terminal-exec --app-id=... -e cmd`. Both are mocked so either
+# choice stays offline. Every call is logged as "<name> <args>" to $OMAPASS_MOCK_LOG.
+# OMAPASS_MOCK_TERMINAL: unset|record = exit 0 without running anything;
+# fail = simulated failure (exit 1); run = run the command via PATH (the mocks), stdin
+# from /dev/null, exit with its status. Anything else exits 2.
+name="${OMAPASS_MOCK_NAME:-$(basename "$0")}"
+if [[ -n "${OMAPASS_MOCK_LOG:-}" ]]; then
+  echo "$name $*" >>"$OMAPASS_MOCK_LOG"
+fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --app-id=* | --title=* | --dir=*) shift ;;
+    *) break ;;
+  esac
+done
+if [[ "${1:-}" == "-e" || "${1:-}" == "--" ]]; then
+  shift
+fi
+if [[ $# -eq 0 ]]; then
+  echo "mock terminal: no command" >&2
+  exit 2
+fi
+case "${OMAPASS_MOCK_TERMINAL:-record}" in
+  record) exit 0 ;;
+  fail)
+    echo "mock terminal: simulated failure" >&2
+    exit 1
+    ;;
+  run)
+    "$@" </dev/null
+    exit $?
+    ;;
+  *)
+    echo "mock terminal: unknown mode: $OMAPASS_MOCK_TERMINAL" >&2
+    exit 2
+    ;;
+esac

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Mock pass-cli: replays fixtures from $OMAPASS_FIXTURES/pass-cli/<key>.{json,txt,stderr,exit,delay,ignore-term}.
 # The key is the args joined with "__", with "/" and spaces replaced by "_".
+# With OMAPASS_MOCK_STDIN_DIR set and stdin not a terminal, stdin is captured byte-exact to
+# $OMAPASS_MOCK_STDIN_DIR/<key>.stdin (last call per key wins), and to last.stdin when
+# non-empty (never to the mock log).
 args="$*"
 if [[ -n "${OMAPASS_MOCK_LOG:-}" ]]; then
   echo "pass-cli $args" >>"$OMAPASS_MOCK_LOG"
@@ -13,6 +16,13 @@ for a in "$@"; do
 done
 key="${key//\//_}"
 key="${key// /_}"
+if [[ -n "${OMAPASS_MOCK_STDIN_DIR:-}" && ! -t 0 ]]; then
+  mkdir -p "$OMAPASS_MOCK_STDIN_DIR"
+  cat >"$OMAPASS_MOCK_STDIN_DIR/$key.stdin"
+  if [[ -s "$OMAPASS_MOCK_STDIN_DIR/$key.stdin" ]]; then
+    cp "$OMAPASS_MOCK_STDIN_DIR/$key.stdin" "$OMAPASS_MOCK_STDIN_DIR/last.stdin"
+  fi
+fi
 dir="${OMAPASS_FIXTURES:-}/pass-cli"
 out=""
 for ext in json txt; do

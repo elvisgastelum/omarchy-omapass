@@ -3,9 +3,10 @@
 #
 # Rules:
 #   - Tests run offline, against the mocks in tests/mocks only. The real
-#     pass-cli, wl-copy and wl-paste hold a real vault and clipboard and must
-#     never run. omapass_guard refuses to continue if any of them would resolve
-#     outside tests/mocks, and it never executes the binaries it checks.
+#     pass-cli, wl-copy, wl-paste, xdg-terminal-exec and omarchy-launch-tui
+#     reach a real vault, clipboard and terminal and must never run.
+#     omapass_guard refuses to continue if any of them would resolve outside
+#     tests/mocks, and it never executes the binaries it checks.
 #   - Every test gets a throwaway HOME/XDG sandbox; nothing touches the real home.
 #   - The suite re-executes itself inside `unshare -rn` (no network) when possible.
 
@@ -28,7 +29,8 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$TESTS_DIR")"
 OMAPASS_MOCKS="$TESTS_DIR/mocks"
 OMAPASS_FIXTURES="${OMAPASS_FIXTURES:-$TESTS_DIR/fixtures}"
-export TESTS_DIR REPO_ROOT OMAPASS_MOCKS OMAPASS_FIXTURES
+OMAPASS_HELPER="${OMAPASS_HELPER:-$REPO_ROOT/bin/omapass-helper}"
+export TESTS_DIR REPO_ROOT OMAPASS_MOCKS OMAPASS_FIXTURES OMAPASS_HELPER
 
 PATH="$OMAPASS_MOCKS:$PATH"
 export PATH
@@ -44,11 +46,14 @@ unset _omapass_var
 OMAPASS_PASSED=0
 OMAPASS_FAILED=0
 
-# Fail unless pass-cli, wl-copy and wl-paste all resolve inside the mocks dir.
+# External commands the code under test may call; each must resolve to a mock.
+OMAPASS_GUARDED=(pass-cli wl-copy wl-paste xdg-terminal-exec omarchy-launch-tui)
+
+# Fail unless every command in OMAPASS_GUARDED resolves inside the mocks dir.
 omapass_guard() {
   local mocks name path real
   mocks="$(realpath "$OMAPASS_MOCKS")"
-  for name in pass-cli wl-copy wl-paste; do
+  for name in "${OMAPASS_GUARDED[@]}"; do
     path="$(command -v "$name" 2>/dev/null || true)"
     real=""
     if [[ "$path" == /* ]]; then
@@ -78,6 +83,9 @@ omapass_sandbox_new() {
   mkdir -p "$HOME" "$XDG_RUNTIME_DIR" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" \
     "$XDG_DATA_HOME" "$XDG_STATE_HOME"
   chmod 700 "$XDG_RUNTIME_DIR"
+  export OMAPASS_MOCK_STDIN_DIR="$OMAPASS_SANDBOX/pass-cli-stdin"
+  mkdir -p "$OMAPASS_MOCK_STDIN_DIR"
+  unset OMAPASS_MOCK_TERMINAL OMAPASS_MOCK_NAME
   : >"$OMAPASS_MOCK_LOG"
 }
 
@@ -90,7 +98,7 @@ run_test() {
     omapass_sandbox_new
     trap 'rm -rf "$OMAPASS_SANDBOX"' EXIT
     omapass_guard
-    "$fn"
+    "$fn" </dev/null
   )
   rc=$?
   set -e
@@ -122,6 +130,36 @@ assert_contains() { # haystack needle [message]
 
 assert_not_contains() { # haystack needle [message]
   [[ "$1" != *"$2"* ]] || _omapass_fail "${3:-unexpected text}: '$2' found in '$1'"
+}
+
+# assert_no_leak [canary...]: no canary (default CANARY) in captured stdout/stderr, debug log or mock log.
+# The pass-cli stdin capture dir ($OMAPASS_MOCK_STDIN_DIR) is deliberately NOT checked:
+# that is where create templates are expected to go. Missing sources are skipped, so a
+# test that expects the debug log should assert_file_exists it first.
+assert_no_leak() {
+  local -a canaries=("$@") sources=()
+  local c f bad=0
+  [[ ${#canaries[@]} -gt 0 ]] || canaries=(CANARY)
+  sources=("$OMAPASS_SANDBOX/stdout" "$OMAPASS_SANDBOX/stderr" "${XDG_RUNTIME_DIR:-}/omapass/debug.log" "${OMAPASS_MOCK_LOG:-}")
+  for f in "${sources[@]}"; do
+    [[ -n "$f" && -f "$f" ]] || continue
+    for c in "${canaries[@]}"; do
+      if grep -qF -- "$c" "$f"; then
+        _omapass_fail "canary '$c' leaked into $f" || bad=1
+      fi
+    done
+  done
+  return "$bad"
+}
+
+# shellcheck disable=SC2034 # S_RC, S_OUT, S_ERR are read by the suites that source this file
+# run_helper <args...>: runs $OMAPASS_HELPER; sets S_RC, S_OUT, S_ERR (also kept in $OMAPASS_SANDBOX/stdout, stderr).
+# stdin is /dev/null, or OMAPASS_HELPER_STDIN: a regular file (a pipe would block the pass-cli mock's stdin capture).
+run_helper() {
+  S_RC=0
+  "$OMAPASS_HELPER" "$@" >"$OMAPASS_SANDBOX/stdout" 2>"$OMAPASS_SANDBOX/stderr" <"${OMAPASS_HELPER_STDIN:-/dev/null}" || S_RC=$?
+  S_OUT="$(<"$OMAPASS_SANDBOX/stdout")"
+  S_ERR="$(<"$OMAPASS_SANDBOX/stderr")"
 }
 
 assert_status() { # expected cmd...
