@@ -133,7 +133,7 @@ flags only; what `--help` cannot show (JSON output shapes, error texts) stays
 | unlock | `pass-cli session unlock` (in a terminal) | OPA-16 | added, verified; no options; how it reads the lock code is unverified |
 | create | `pass-cli item create <type> --get-template`, then `pass-cli item create <type> --share-id <S> --from-template -` | OPA-18, OPA-23 | verified for `login`, `note`, `credit-card`, `wifi`, `identity`, `custom`. Corrected: `ssh-key` has no `--get-template` and `item create alias` does not exist; both have their own rows |
 | create SSH key | `pass-cli item create ssh-key generate --share-id <S> --title <T> --key-type <K> [--comment <C>]` | OPA-23 | added, verified |
-| import SSH key | `pass-cli item create ssh-key import --share-id <S> --title <T> --from-private-key <FILE>` | OPA-23 | added, verified; how the key reaches `<FILE>` is decided in OPA-23 (for example a private temp file written under `umask 077` and deleted on exit; the key itself never goes on argv) |
+| import SSH key | `pass-cli item create ssh-key import --share-id <S> --title <T> --from-private-key <FILE>` | OPA-23 | added, verified; the helper passes `--from-private-key /dev/stdin` and pipes the key to pass-cli's stdin (pass-cli 2.7.1 source reads the path with `std::fs::read_to_string`, no file-type check), so the key is never on argv, in the environment or in a file; not yet run against the real binary |
 | create alias | `pass-cli item alias create --share-id <S> --prefix <P> --output json` | OPA-23 | verified; `--output` defaults to `human`, so `json` must be passed; JSON shape unverified |
 | generate | `pass-cli password generate random <options> --output json` / `pass-cli password generate passphrase <options> --output json` (inside `create` only) | OPA-18 | verified flags; JSON shape unverified |
 
@@ -215,7 +215,7 @@ force a full sign-in for a user who only asked to lock.
 | `lock` | none | none | OPA-16 | implemented |
 | `logout` | none | none | OPA-16 | implemented |
 | `login`, `unlock` | none: open a terminal running `pass-cli login` / `pass-cli session unlock` | none | OPA-16 | implemented |
-| `create` | `<type> --share-id <S>` | form JSON | OPA-18, OPA-23 | implemented (login, note, custom); OPA-23 adds the rest |
+| `create` | `<type> --share-id <S>` | form JSON | OPA-18, OPA-23 | implemented (login, note, custom, credit-card, wifi, identity, alias, ssh-key) |
 | `recents` | `add <share_id> <item_id>`, `list`, `clear` | none | OPA-20 | implemented |
 
 ### `version`
@@ -437,8 +437,8 @@ and `logout`, `pass-cli` failures go through the classifier.
 path covers `login`, `note`, `credit-card`, `wifi`, `identity` and `custom`
 only: `ssh-key` has no `--get-template` and uses `item create ssh-key
 generate` or `import`, and an alias uses `item alias create` (see
-[pass-cli invocations](#pass-cli-invocations)); OPA-23 maps their form fields
-to those flags. Invalid form JSON is `failed` + `bad_input` and `pass-cli` is
+[pass-cli invocations](#pass-cli-invocations)); their non-secret form fields
+map to those flags and the imported private key goes on stdin. Invalid form JSON is `failed` + `bad_input` and `pass-cli` is
 not called.
 
 Form JSON (at most 65536 bytes, exactly one object; an unknown key, a wrong
@@ -449,6 +449,11 @@ type or an out-of-range value is `bad_input`):
 | `login` | `title` (required, 1-512 chars), `username`, `email`, `password`, `totp_uri`, `urls` (array of strings), `generate` |
 | `note` | `title`, `note` |
 | `custom` | `title`, `note`, `section` (section name, default `Fields`), `fields`: array of `{name, value, hidden}`; `hidden: true` is a `hidden` field, else `text` |
+| `credit-card` | `title`, `cardholder_name`, `number` (≤64), `cvv` (≤16), `pin` (≤32), `expiration_date` (`YYYY-MM`; format unverified), `note` |
+| `wifi` | `title`, `ssid`, `password`, `generate`, `note` (`security` is not set: its values are unverified) |
+| `identity` | `title`, `note` and any other string key of the identity template (`full_name`, `email`, `social_security_number`, ...; each ≤512) |
+| `alias` | `prefix` (required, `^[a-z0-9][a-z0-9._-]{0,39}$`); passed as `--prefix` |
+| `ssh-key` | `title` and `mode`: `generate` with `key_type` (`ed25519` default, `rsa2048`, `rsa4096`) and `comment`, or `import` with `private_key` (≤16384, starts with `-----BEGIN `); `title` and `comment` may not start with `-` or contain control characters |
 
 `generate` is `{"kind":"random","length":8-64,"numbers":bool,"uppercase":bool,"symbols":bool}`
 or `{"kind":"passphrase","count":3-10,"separator":"hyphens"|...,"capitalise":bool,"numbers":bool}`;
@@ -465,7 +470,11 @@ The form and the generated password stay in unexported shell variables and
 reach `jq` and `pass-cli` only through pipes; only the template (no secret) is
 written to `OMAPASS_TMPDIR`. A template missing a key the form fills is
 `failed` + `bad_output`. `pass-cli` stdout from `item create` is discarded.
-Debug labels: `item template`, `password generate`, `item create`.
+Debug labels: `item template`, `password generate`, `item create`, `alias create`,
+`ssh-key generate`, `ssh-key import`. `item alias create --output json` stdout
+(shape unverified) and `item create ssh-key` stdout are discarded too; their
+envelope has the same `type` and `share_id` keys. `--password` is never passed
+to the ssh-key commands.
 
 ```json
 {"ok":true,"type":"login","share_id":"..."}
