@@ -220,7 +220,7 @@ test_invalid_form() {
 test_usage() {
   local -a argsets=(
     "bogus --share-id $SHARE"
-    "ssh-key --share-id $SHARE"
+    "credit_card --share-id $SHARE"
     "login"
     "login --share-id $SHARE extra"
     "login --share-id a/b"
