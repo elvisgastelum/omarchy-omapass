@@ -97,7 +97,7 @@ omapass_fail() {
     *) code=failed ;;
   esac
   case "$reason" in
-    usage | unknown_subcommand | missing_pass_cli | bad_version | bad_output | bad_input | bad_lib) ;;
+    usage | unknown_subcommand | missing_pass_cli | bad_version | bad_output | bad_input | bad_lib | no_lock) ;;
     *) reason="" ;;
   esac
   status="$(omapass_exit_code "$code")"

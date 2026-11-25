@@ -7,7 +7,7 @@ var ERROR_CODES = ["signed_out", "locked", "too_old", "plan_required", "agent_se
 var LIST_ITEM_KEYS = ["share_id", "id", "vault_id", "vault", "type", "title", "username", "email", "urls", "create_time", "modify_time", "last_use_time", "has_totp", "secret_fields", "fields"]
 var TYPES = ["login", "alias", "note", "credit-card", "identity", "ssh-key", "wifi", "custom"]
 
-var REASONS = ["usage", "unknown_subcommand", "missing_pass_cli", "bad_version", "bad_output", "bad_input", "bad_lib"]
+var REASONS = ["usage", "unknown_subcommand", "missing_pass_cli", "bad_version", "bad_output", "bad_input", "bad_lib", "no_lock"]
 var FIELD_KINDS = ["text", "hidden", "timestamp", "totp"]
 var CODE_RE = /^[a-z_]{1,32}$/
 // Field selectors such as "password", "extra:0" or "section:0:1".
