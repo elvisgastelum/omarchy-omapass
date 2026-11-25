@@ -211,7 +211,7 @@ same change, and confirms the real no-lock error text before matching it.
 | `lock` | none | none | OPA-16 | planned |
 | `logout` | none | none | OPA-16 | planned |
 | `login`, `unlock` | none: open a terminal running `pass-cli login` / `pass-cli session unlock` | none | OPA-16 | planned |
-| `create` | `<type> --share-id <S>` | form JSON | OPA-18, OPA-23 | planned |
+| `create` | `<type> --share-id <S>` | form JSON | OPA-18, OPA-23 | implemented (login, note, custom); OPA-23 adds the rest |
 | `recents` | `add <share_id> <item_id>`, `list`, `clear` | none | OPA-20 | implemented |
 
 ### `version`
@@ -371,6 +371,32 @@ generate` or `import`, and an alias uses `item alias create` (see
 [pass-cli invocations](#pass-cli-invocations)); OPA-23 maps their form fields
 to those flags. Invalid form JSON is `failed` + `bad_input` and `pass-cli` is
 not called.
+
+Form JSON (at most 65536 bytes, exactly one object; an unknown key, a wrong
+type or an out-of-range value is `bad_input`):
+
+| type | keys |
+|------|------|
+| `login` | `title` (required, 1-512 chars), `username`, `email`, `password`, `totp_uri`, `urls` (array of strings), `generate` |
+| `note` | `title`, `note` |
+| `custom` | `title`, `note`, `section` (section name, default `Fields`), `fields`: array of `{name, value, hidden}`; `hidden: true` is a `hidden` field, else `text` |
+
+`generate` is `{"kind":"random","length":8-64,"numbers":bool,"uppercase":bool,"symbols":bool}`
+or `{"kind":"passphrase","count":3-10,"separator":"hyphens"|...,"capitalise":bool,"numbers":bool}`;
+omitted options take the `--help` defaults and every option is always passed,
+in this order: random `--length --numbers --uppercase --symbols`, passphrase
+`--separator --capitalise --numbers --count`, then `--output json`. `password` and `generate` are mutually
+exclusive. The helper runs `pass-cli password generate ...` itself and puts the
+result in the template; the generated value is never printed or logged. The
+`--output json` shape is unverified: a JSON string, or an object whose
+`password`, `passphrase` or `value` is a non-empty string, is accepted;
+anything else is `failed` + `bad_output` and nothing is created.
+
+The form and the generated password stay in unexported shell variables and
+reach `jq` and `pass-cli` only through pipes; only the template (no secret) is
+written to `OMAPASS_TMPDIR`. A template missing a key the form fills is
+`failed` + `bad_output`. `pass-cli` stdout from `item create` is discarded.
+Debug labels: `item template`, `password generate`, `item create`.
 
 ```json
 {"ok":true,"type":"login","share_id":"..."}
