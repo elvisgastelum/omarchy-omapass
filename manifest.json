@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "id": "elvisgastelum.omapass",
+  "name": "Omapass",
+  "version": "0.1.0",
+  "author": "Elvis Gastelum",
+  "license": "MIT",
+  "description": "Proton Pass picker for the Omarchy bar: search, copy and manage entries from the keyboard",
+  "kinds": ["bar-widget", "overlay", "service"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "overlay": "Overlay.qml",
+    "service": "Service.qml"
+  },
+  "barWidget": {
+    "displayName": "Omapass",
+    "description": "Open the Proton Pass picker",
+    "category": "Security",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "clipboardClearSeconds": 45,
+      "pasteOnce": false,
+      "hiddenVaults": [],
+      "showRecents": true,
+      "webAccountIndex": 0,
+      "refreshMaxAgeSeconds": 120
+    },
+    "schema": [
+      {
+        "key": "clipboardClearSeconds",
+        "type": "integer",
+        "label": "Clipboard clear (seconds)",
+        "defaultValue": 45,
+        "min": 0,
+        "max": 300,
+        "step": 5,
+        "description": "Seconds before a copied secret is cleared from the clipboard. 0 keeps it until replaced."
+      },
+      {
+        "key": "pasteOnce",
+        "type": "boolean",
+        "label": "Paste once",
+        "defaultValue": false,
+        "description": "Clear the clipboard after the first paste instead of waiting for the timer."
+      },
+      {
+        "key": "hiddenVaults",
+        "type": "multiselect",
+        "label": "Hidden vaults",
+        "defaultValue": [],
+        "options": [],
+        "description": "JSON array of vault share_ids to hide"
+      },
+      {
+        "key": "showRecents",
+        "type": "boolean",
+        "label": "Show recents",
+        "defaultValue": true,
+        "description": "List recently used entries at the top of the picker."
+      },
+      {
+        "key": "webAccountIndex",
+        "type": "integer",
+        "label": "Web account number",
+        "defaultValue": 0,
+        "min": 0,
+        "max": 9,
+        "step": 1,
+        "description": "Proton web session number used in /u/<n>/ links"
+      },
+      {
+        "key": "refreshMaxAgeSeconds",
+        "type": "integer",
+        "label": "Refresh max age (seconds)",
+        "defaultValue": 120,
+        "min": 0,
+        "max": 3600,
+        "step": 10,
+        "description": "Reuse cached entries younger than this many seconds before fetching again."
+      }
+    ]
+  }
+}
