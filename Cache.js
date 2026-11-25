@@ -98,9 +98,15 @@ function settings(barConfig, pluginId, defaults) {
     var age = _seconds(entry.refreshMaxAgeSeconds)
     if (age === null)
         age = _seconds(d.refreshMaxAgeSeconds)
+    function pick(key) {
+        return entry[key] !== undefined ? entry[key] : d[key]
+    }
     return {
-        hidden: _idList(entry.hiddenVaults !== undefined ? entry.hiddenVaults : d.hiddenVaults),
-        maxAge: age === null ? DEFAULT_MAX_AGE_SECONDS : age
+        hidden: _idList(pick("hiddenVaults")),
+        maxAge: age === null ? DEFAULT_MAX_AGE_SECONDS : age,
+        clipboardClearSeconds: pick("clipboardClearSeconds"),
+        pasteOnce: pick("pasteOnce") === true,
+        showRecents: pick("showRecents") !== false
     }
 }
 

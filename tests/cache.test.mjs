@@ -340,20 +340,36 @@ for (const reason of ['create', 'trash', 'untrash', 'manual']) {
   const id = manifest.id;
   const defaults = manifest.barWidget.defaults;
   const bar = (section, entry) => ({ layout: { left: [{ id: 'other.widget', hiddenVaults: ['X'] }], [section]: [{ id, ...entry }] } });
+  // The three action settings as the manifest has them, and as they come out with no defaults at all.
+  const shipped = { clipboardClearSeconds: 45, pasteOnce: false, showRecents: true };
+  const bare = { clipboardClearSeconds: undefined, pasteOnce: false, showRecents: true };
   for (const section of ['center', 'right']) {
     for (const hiddenVaults of [['A', 'B'], '["A","B"]']) {
       const got = Cache.settings(bar(section, { hiddenVaults, refreshMaxAgeSeconds: 30 }), id, defaults);
-      assert.deepEqual(got, { hidden: ['A', 'B'], maxAge: 30 });
+      assert.deepEqual(got, { hidden: ['A', 'B'], maxAge: 30, ...shipped });
     }
   }
   assert.equal(Cache.settings(bar('right', { refreshMaxAgeSeconds: 0 }), id, defaults).maxAge, 0);
   const custom = { hiddenVaults: ['D'], refreshMaxAgeSeconds: 45 };
-  assert.deepEqual(Cache.settings(bar('right', {}), id, custom), { hidden: ['D'], maxAge: 45 });
-  assert.deepEqual(Cache.settings({ layout: {} }, id, custom), { hidden: ['D'], maxAge: 45 });
-  assert.deepEqual(Cache.settings(bar('right', {}), id, defaults), { hidden: [], maxAge: 120 });
-  assert.deepEqual(Cache.settings(null, id, defaults), { hidden: [], maxAge: 120 });
-  assert.deepEqual(Cache.settings(null, id), { hidden: [], maxAge: 120 });
+  assert.deepEqual(Cache.settings(bar('right', {}), id, custom), { hidden: ['D'], maxAge: 45, ...bare });
+  assert.deepEqual(Cache.settings({ layout: {} }, id, custom), { hidden: ['D'], maxAge: 45, ...bare });
+  assert.deepEqual(Cache.settings(bar('right', {}), id, defaults), { hidden: [], maxAge: 120, ...shipped });
+  assert.deepEqual(Cache.settings(null, id, defaults), { hidden: [], maxAge: 120, ...shipped });
+  assert.deepEqual(Cache.settings(null, id), { hidden: [], maxAge: 120, ...bare });
   assert.deepEqual(Cache.settings(bar('right', { hiddenVaults: 'not json' }), id, defaults).hidden, []);
+
+  // clipboardClearSeconds, pasteOnce, showRecents: the entry overrides the defaults.
+  const actions = (entry, d) => {
+    const { clipboardClearSeconds, pasteOnce, showRecents } = Cache.settings(bar('right', entry), id, d);
+    return { clipboardClearSeconds, pasteOnce, showRecents };
+  };
+  const set = { clipboardClearSeconds: 10, pasteOnce: true, showRecents: false };
+  assert.deepEqual(actions(set, defaults), set);
+  assert.equal(actions({ clipboardClearSeconds: 0 }, defaults).clipboardClearSeconds, 0);
+  const flipped = { clipboardClearSeconds: 90, pasteOnce: true, showRecents: false };
+  assert.deepEqual(actions({}, flipped), flipped);
+  assert.deepEqual(actions(shipped, flipped), shipped);
+  assert.deepEqual(actions({}, defaults), shipped);
 }
 
 // 14. info() carries counts only.
@@ -379,7 +395,8 @@ for (const reason of ['create', 'trash', 'untrash', 'manual']) {
   const bar = { layout: { right: [{ id: 'p', hiddenVaults: ['S1'], refreshMaxAgeSeconds: 10 }] } };
   const parsed = Cache.userBar(JSON.stringify({ version: 1, bar }));
   assert.deepEqual(parsed, bar);
-  assert.deepEqual(Cache.settings(parsed, 'p', null), { hidden: ['S1'], maxAge: 10 });
+  assert.deepEqual(Cache.settings(parsed, 'p', null),
+    { hidden: ['S1'], maxAge: 10, clipboardClearSeconds: undefined, pasteOnce: false, showRecents: true });
   // Half-written or empty: keep the previous settings.
   assert.equal(Cache.userBar(''), undefined);
   assert.equal(Cache.userBar('{"version":1,"bar":'), undefined);
