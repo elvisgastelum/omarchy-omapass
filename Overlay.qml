@@ -25,6 +25,8 @@ Item {
 
   function open(payloadJson) {
     root.opened = true
+    if (root.liveService && typeof root.liveService.overlayOpened === "function")
+      root.liveService.overlayOpened()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
