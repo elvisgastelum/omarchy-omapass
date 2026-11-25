@@ -4,9 +4,13 @@
 # With OMAPASS_MOCK_STDIN_DIR set and stdin not a terminal, stdin is captured byte-exact to
 # $OMAPASS_MOCK_STDIN_DIR/<key>.stdin (last call per key wins), and to last.stdin when
 # non-empty (never to the mock log).
+# With OMAPASS_MOCK_ENV_LOG set, the environment pass-cli received is appended there.
 args="$*"
 if [[ -n "${OMAPASS_MOCK_LOG:-}" ]]; then
   echo "pass-cli $args" >>"$OMAPASS_MOCK_LOG"
+fi
+if [[ -n "${OMAPASS_MOCK_ENV_LOG:-}" ]]; then
+  env >>"$OMAPASS_MOCK_ENV_LOG"
 fi
 key=""
 sep=""
