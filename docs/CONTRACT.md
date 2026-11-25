@@ -122,8 +122,8 @@ flags only; what `--help` cannot show (JSON output shapes, error texts) stays
 | session probe, vaults | `pass-cli vault list --output json` | OPA-10, OPA-13 | verified |
 | list a vault | `pass-cli item list --share-id <S> --filter-state active --output json --show-secrets` | OPA-13 | verified; `--filter-state` takes `active` or `trashed`; `--show-secrets` needs `--output json` and is not allowed with agent sessions |
 | agent-session fallback | `pass-cli item list --share-id <S> --filter-state active --output json` | OPA-13 | verified |
-| copy a field | `pass-cli item view --share-id <S> --item-id <I> --output json` (piped to `jq`, then `wl-copy --sensitive`) | OPA-14 | verified flags; JSON shape unverified. Never `--field`, `--item-title`, `--vault-name` or a `pass://` URI |
-| copy TOTP | `pass-cli item totp --share-id <S> --item-id <I> --output json` | OPA-14 | verified flags; JSON shape unverified. `--field` (one TOTP field of several) exists and is not used |
+| copy a field | `pass-cli item view --share-id <S> --item-id <I> --output json` (piped to `jq`, then `wl-copy --sensitive`) | OPA-14 | verified flags; JSON shape unverified: assumed `{"item": <one item list --show-secrets entry>, "attachments": [...]}` (the `item` wrapper is from the pass-cli source). Never `--field`, `--item-title`, `--vault-name` or a `pass://` URI |
+| copy TOTP | `pass-cli item totp --share-id <S> --item-id <I> --output json` | OPA-14 | verified flags; JSON shape unverified: assumed a flat `{"<field name>": "<code>"}` with the login TOTP under `totp` (pass-cli source). `--field` (one TOTP field of several) exists and is not used |
 | trash | `pass-cli item trash --share-id <S> --item-id <I>` | OPA-16 | verified. Never `--item-title` or `--vault-name` |
 | untrash | `pass-cli item untrash --share-id <S> --item-id <I>` | OPA-16 | corrected: was `item untrash ...`; same flags as `trash` |
 | lock | `pass-cli session lock` | OPA-16 | verified; no options; requires an existing lock, see [Session lock](#session-lock) |
@@ -205,8 +205,8 @@ same change, and confirms the real no-lock error text before matching it.
 | `version` | none | none | OPA-10 | implemented |
 | `vaults` | none | none | OPA-13 | implemented |
 | `list` | `[--share-id <S>]...` | none | OPA-13 | implemented |
-| `copy` | `<share_id> <item_id> <field> [--paste-once] [--clear-after <0-300>]` | none | OPA-14 | planned |
-| `clipboard-clear` | internal: run detached by `copy` | none | OPA-14 | planned |
+| `copy` | `<share_id> <item_id> <field> [--paste-once] [--clear-after <0-300>]` | none | OPA-14 | implemented |
+| `clipboard-clear` | internal: `<token>`, run detached by `copy` | none | OPA-14 | implemented |
 | `trash`, `untrash` | `<share_id> <item_id>` | none | OPA-16 | planned |
 | `lock` | none | none | OPA-16 | planned |
 | `logout` | none | none | OPA-16 | planned |
@@ -351,11 +351,34 @@ fixture uses `verification_number` (unverified).
 ### `copy`, `clipboard-clear`
 
 `copy <share_id> <item_id> <field>` copies one copy field (type table) or one
-dynamic field to the clipboard: `pass-cli` stdout goes through `jq` straight
-into `wl-copy --sensitive` (`-o` with `--paste-once`). A detached
-`clipboard-clear` clears it after `--clear-after` seconds (default 45, 0 means
-never) only if the clipboard still matches an HMAC with a random per-session
-key kept `0600` in `$XDG_RUNTIME_DIR`. Unknown fields: `not_found`.
+dynamic field (`extra:<i>`, `section:<s>:<f>`) to the clipboard: `pass-cli`
+stdout goes straight into `jq`, and the value `jq` extracts is piped into
+`wl-copy --sensitive` (`-o` with `--paste-once`; paste-once is off by default)
+only after `jq` succeeded, so a failed or unexpected read never touches the
+clipboard. Every shape assumption is in one `jq` program
+(`omapass__copy_view_jq` in `bin/lib/copy.sh`); it fails closed: the item's
+`id` and `share_id` must equal the arguments, `.item.content.content` must have
+exactly one known variant key, and a value must be a string without NUL (or a
+whole-number `Timestamp`). TOTP fields (`totp`, or a dynamic field of kind
+`totp`) are copied as the current code from `item totp` (6-10 digits), looked up
+by the name `item totp` uses (`totp` for the login TOTP, else the field name);
+a name two TOTP fields share is refused (`failed`).
+
+A detached `clipboard-clear` (`setsid`) clears it after `--clear-after` seconds
+(integer 0-300, default 45, 0 means never) only if the clipboard still matches
+an HMAC-SHA256 of the copied value with a random 64-byte per-session key. Files
+in `$XDG_RUNTIME_DIR/omapass` (`0700`), each `0600`: `clipboard.key` (the key,
+hex), `clipboard.state` (`v1 <token> <deadline> <hmac>` for the latest copy) and
+`clipboard.lock` (`flock`, serializes copies and clears). A newer copy replaces
+the token, so an older pending clear stands down. The HMAC is computed with
+`printf` and `sha256sum` on stdin; neither the value nor the key is ever on argv.
+`omapass_clipboard_clear_now` (for `lock`) clears the clipboard if it still
+holds the latest copy and removes the state.
+
+Errors: unknown field, a field the item's type does not have, or an empty value:
+`not_found`; bad ids or `--clear-after`: `failed` + `usage`; unexpected `item
+view` or `item totp` output: `failed` + `bad_output`; `pass-cli` failures go
+through the classifier.
 
 ```json
 {"ok":true,"field":"password","clear_after":45}

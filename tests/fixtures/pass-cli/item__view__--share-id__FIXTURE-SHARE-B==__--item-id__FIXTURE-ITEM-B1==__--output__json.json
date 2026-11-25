@@ -1,0 +1,31 @@
+{
+  "item": {
+    "id": "FIXTURE-ITEM-B1==",
+    "share_id": "FIXTURE-SHARE-B==",
+    "vault_id": "FIXTURE-VAULT-B==",
+    "state": "Active",
+    "flags": [],
+    "create_time": "2026-01-01T10:00:00Z",
+    "modify_time": "2026-02-01T10:00:00Z",
+    "last_use_time": "2026-03-01T10:00:00Z",
+    "content": {
+      "title": "Fixture Credit Card",
+      "note": "",
+      "item_uuid": "FIXTURE-UUID-B1",
+      "content": {
+        "CreditCard": {
+          "cardholder_name": "CANARY-CARD-HOLDER-1",
+          "card_type": "Visa",
+          "number": "CANARY-CARD-NUMBER-1",
+          "verification_number": "CANARY-CARD-CVV-1",
+          "expiration_date": "2031-09-CANARY",
+          "pin": "CANARY-CARD-PIN-1"
+        }
+      },
+      "extra_fields": [],
+      "custom_icon": null,
+      "platform_specific": null
+    }
+  },
+  "attachments": []
+}
